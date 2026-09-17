@@ -1,0 +1,1849 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>黑柳徹 × 嘖嘖 - 訂單統計管理與 A4 批次列印系統</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- SheetJS for Excel Parsing & Generation -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- FontAwesome Icons CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts Inter & Noto Sans TC -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'Noto Sans TC', 'sans-serif'],
+                    },
+                    colors: {
+                        morandi: {
+                            blue: '#E6F0FA',
+                            green: '#EAF5E9',
+                            orange: '#FFF3E0',
+                            purple: '#F3E5F5',
+                            yellow: '#FFFDE7',
+                            mint: '#E8F5E9',
+                            sky: '#E1F5FE',
+                            grey: '#EDEDED',
+                            rose: '#FBE9E7'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        .a4-page {
+            width: 210mm;
+            min-height: 297mm;
+            padding: 18mm 18mm 15mm 18mm;
+            background: #ffffff;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+            margin: 0 auto;
+            position: relative;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        /* Print Specific Styles for A4 Paper Export */
+        @media print {
+            @page {
+                size: A4 portrait;
+                margin: 0;
+            }
+            html, body {
+                width: 210mm !important;
+                height: auto !important;
+                min-height: auto !important;
+                background: white !important;
+                color: black !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                overflow: visible !important;
+                display: block !important;
+            }
+            .no-print {
+                display: none !important;
+            }
+            div, main {
+                overflow: visible !important;
+                height: auto !important;
+                max-height: none !important;
+            }
+            .print-container {
+                display: block !important;
+                width: 210mm !important;
+                margin: 0 auto !important;
+                padding: 0 !important;
+            }
+            .a4-page {
+                width: 210mm !important;
+                height: 297mm !important;
+                max-height: 297mm !important;
+                padding: 18mm 18mm 15mm 18mm !important;
+                box-shadow: none !important;
+                margin: 0 auto !important;
+                page-break-after: always !important;
+                break-after: page !important;
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+                box-sizing: border-box !important;
+            }
+        }
+
+        /* Custom Scrollbar Styles */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 font-sans text-slate-800 antialiased min-h-screen flex flex-col">
+
+    <header class="no-print bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-30 shadow-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <!-- Brand Logo & Title -->
+            <div class="flex items-center space-x-3">
+                <div class="bg-indigo-600 text-white font-black p-2 rounded-lg flex items-center justify-center w-10 h-10 text-base shadow">
+                    黑
+                </div>
+                <div>
+                    <h1 class="font-bold text-base tracking-tight leading-none flex items-center gap-2">
+                        <span>黑柳徹 × 嘖嘖</span>
+                        <span class="text-[10px] bg-indigo-900/80 text-indigo-200 border border-indigo-700/50 px-1.5 py-0.5 rounded font-mono">v3.5 PRO</span>
+                    </h1>
+                    <p class="text-xs text-slate-400 mt-1">訂單彙整 · 備貨對比 · A4 出貨列印系統</p>
+                </div>
+            </div>
+
+            <!-- Navigation Tabs -->
+            <div class="hidden md:flex bg-slate-800/80 p-1 rounded-xl border border-slate-700/60 space-x-1">
+                <button id="tabBtnDash" onclick="switchTab('dashboard')" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center space-x-1.5 bg-indigo-600 text-white shadow">
+                    <i class="fa-solid fa-chart-pie text-indigo-200"></i>
+                    <span>📊 銷量與備貨統計</span>
+                </button>
+                <button id="tabBtnPrint" onclick="switchTab('print')" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center space-x-1.5 text-slate-300 hover:text-white hover:bg-slate-700">
+                    <i class="fa-solid fa-print"></i>
+                    <span>📄 A4 訂單批次列印</span>
+                </button>
+            </div>
+
+            <!-- Top Action Controls -->
+            <div class="flex items-center space-x-2 sm:space-x-3">
+                <button onclick="openStockConfigModal()" class="px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition flex items-center space-x-1 border border-slate-700 shadow-sm" title="設定第一批備貨基準量">
+                    <i class="fa-solid fa-sliders text-amber-400"></i>
+                    <span class="hidden sm:inline">調整備貨基準</span>
+                </button>
+
+                <button onclick="loadDemoData()" class="px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition flex items-center space-x-1 border border-slate-700 shadow-sm">
+                    <i class="fa-solid fa-wand-magic-sparkles text-indigo-400"></i>
+                    <span class="hidden sm:inline">載入示範資料</span>
+                </button>
+
+                <label class="px-3.5 py-1.5 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg cursor-pointer transition flex items-center space-x-1 shadow">
+                    <i class="fa-solid fa-file-arrow-up"></i>
+                    <span>上傳 Excel / CSV</span>
+                    <input type="file" id="excelFileInput" accept=".xlsx, .xls, .csv" class="hidden" onchange="handleFileUpload(event)">
+                </label>
+            </div>
+        </div>
+    </header>
+
+    <!-- Global Drag & Drop Overlay -->
+    <div id="dragDropOverlay" class="no-print fixed inset-0 bg-indigo-950/80 backdrop-blur-md z-50 flex flex-col items-center justify-center text-white hidden pointer-events-none transition-all duration-200">
+        <div class="border-4 border-dashed border-indigo-400/60 p-12 rounded-3xl flex flex-col items-center max-w-md text-center shadow-2xl">
+            <i class="fa-solid fa-cloud-arrow-up text-6xl mb-4 text-indigo-300 animate-bounce"></i>
+            <h3 class="text-2xl font-extrabold mb-2">釋放滑鼠，開始自動解析訂單</h3>
+            <p class="text-xs text-indigo-200">支援 .xlsx, .xls, .csv 格式訂單資料</p>
+        </div>
+    </div>
+
+    <div id="tabContentDash" class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 space-y-6">
+        
+        <!-- KPI Summary Cards -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+                    <i class="fa-solid fa-receipt text-lg"></i>
+                </div>
+                <div>
+                    <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">匯入總訂單筆數</p>
+                    <p id="kpiTotalOrders" class="text-xl font-extrabold text-slate-900 font-mono">0</p>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+                    <i class="fa-solid fa-boxes-stacked text-lg"></i>
+                </div>
+                <div>
+                    <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">鍋具總需求量 (隻)</p>
+                    <p id="kpiTotalPansSold" class="text-xl font-extrabold text-slate-900 font-mono">0</p>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
+                    <i class="fa-solid fa-warehouse text-lg"></i>
+                </div>
+                <div>
+                    <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">第一批總備貨數</p>
+                    <p id="kpiTotalStock" class="text-xl font-extrabold text-slate-900 font-mono">0</p>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center space-x-3">
+                <div id="kpiAlertIconBg" class="w-10 h-10 rounded-lg bg-slate-100 text-slate-500 flex items-center justify-center font-bold">
+                    <i class="fa-solid fa-circle-exclamation text-lg"></i>
+                </div>
+                <div>
+                    <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">超賣透支品項數</p>
+                    <p id="kpiOversoldAlert" class="text-xl font-extrabold text-slate-900 font-mono">0</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Master Action Toolbar -->
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div class="flex items-center space-x-2">
+                <i class="fa-solid fa-truck-fast text-emerald-600 text-xl"></i>
+                <div>
+                    <h2 class="text-sm font-bold text-slate-800">銷售統計與託運單匯出功能</h2>
+                    <p class="text-xs text-slate-500">自動轉換收件人、地址、補零電話與備註，輸出新竹物流標準 12 欄位格式</p>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2">
+                <button onclick="exportHsinchuLogisticsExcel()" class="px-3.5 py-2 text-xs font-bold bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg transition flex items-center space-x-1.5 shadow">
+                    <i class="fa-solid fa-file-excel"></i>
+                    <span>🚚 匯出全部新竹物流託運單 Excel</span>
+                </button>
+                <button onclick="exportMasterExcel()" class="px-3.5 py-2 text-xs font-bold bg-slate-800 hover:bg-slate-700 text-white rounded-lg transition flex items-center space-x-1.5 shadow">
+                    <i class="fa-solid fa-download"></i>
+                    <span>📥 匯出完整統計總表</span>
+                </button>
+                <button onclick="exportAllCombosBatch()" class="px-3.5 py-2 text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition flex items-center space-x-1.5 shadow">
+                    <i class="fa-solid fa-box-archive"></i>
+                    <span>📦 打包細項組合 Excel</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Main Dashboard Tables Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            <!-- Left Column: Detailed Sponsorship Options Table (7 Cols) -->
+            <div class="lg:col-span-7 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+                <div class="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+                    <div class="flex items-center space-x-2">
+                        <span class="w-2.5 h-2.5 bg-indigo-600 rounded-full"></span>
+                        <h3 class="text-sm font-bold text-slate-800">讚助品項組合明細 (點擊右側按鈕獨立匯出或列印)</h3>
+                    </div>
+                    <span id="comboCountBadge" class="text-[11px] bg-slate-200 text-slate-700 font-semibold px-2 py-0.5 rounded-full">0 個組合</span>
+                </div>
+
+                <div class="overflow-x-auto flex-1 max-h-[600px] overflow-y-auto">
+                    <table class="w-full text-left border-collapse text-xs">
+                        <thead class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200 sticky top-0 z-10">
+                            <tr>
+                                <th class="py-2.5 px-3 border-r border-slate-200">讚助品項 (贊助選項總覽)</th>
+                                <th class="py-2.5 px-3 text-center border-r border-slate-200 w-16">數量</th>
+                                <th class="py-2.5 px-3 text-center border-r border-slate-200 w-20">合計訂單</th>
+                                <th class="py-2.5 px-3 text-center w-36">獨立匯出 / 列印</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tblComboBody" class="divide-y divide-slate-200">
+                            <tr>
+                                <td colspan="4" class="p-8 text-center text-slate-400">尚未載入訂單資料</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Right Column: Single Item Breakdown & Stock Table (5 Cols) -->
+            <div class="lg:col-span-5 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+                <div class="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+                    <div class="flex items-center space-x-2">
+                        <span class="w-2.5 h-2.5 bg-emerald-600 rounded-full"></span>
+                        <h3 class="text-sm font-bold text-slate-800">品項統計 (單品拆解與備貨對比)</h3>
+                    </div>
+                    <button onclick="openStockConfigModal()" class="text-xs text-indigo-600 hover:text-indigo-800 font-medium hover:underline">
+                        <i class="fa-solid fa-gear"></i> 微調第一批備貨
+                    </button>
+                </div>
+
+                <div class="overflow-x-auto flex-1">
+                    <table class="w-full text-left border-collapse text-xs">
+                        <thead class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                            <tr>
+                                <th class="py-2.5 px-3 border-r border-slate-200">品項統計</th>
+                                <th class="py-2.5 px-3 text-center border-r border-slate-200 w-16">銷量</th>
+                                <th class="py-2.5 px-3 text-center border-r border-slate-200 w-16">備貨</th>
+                                <th class="py-2.5 px-3 text-center">庫存說明</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tblSingleBody" class="divide-y divide-slate-200">
+                            <tr>
+                                <td colspan="4" class="p-8 text-center text-slate-400">尚未載入訂單資料</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div id="tabContentPrint" class="flex-1 flex overflow-hidden hidden">
+        
+        <!-- Sidebar Controls & Order List -->
+        <aside class="no-print w-80 bg-white border-r border-slate-200 flex flex-col flex-shrink-0 z-10">
+            <!-- Sidebar Header & Search -->
+            <div class="p-4 border-b border-slate-100 bg-slate-50/50">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">訂單列表 (<span id="orderCount">0</span>)</span>
+                    <button onclick="openSenderModal()" class="text-xs text-indigo-600 hover:text-indigo-800 font-medium hover:underline flex items-center space-x-1">
+                        <i class="fa-solid fa-sliders text-[11px]"></i>
+                        <span>頁尾條款設定</span>
+                    </button>
+                </div>
+
+                <!-- Combo Filter Select Dropdown -->
+                <div class="mb-2">
+                    <select id="comboFilterSelect" onchange="filterOrders()" class="w-full py-1.5 px-2 text-xs bg-white border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 font-medium text-slate-700 shadow-sm truncate">
+                        <option value="ALL">📦 所有讚助組合 (全部)</option>
+                    </select>
+                </div>
+
+                <div class="relative">
+                    <input type="text" id="searchInput" oninput="filterOrders()" placeholder="搜尋姓名、電話、訂單號..." class="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500">
+                    <i class="fa-solid fa-magnifying-glass text-slate-400 absolute left-2.5 top-2.5 text-xs"></i>
+                </div>
+            </div>
+
+            <!-- Order List View -->
+            <div id="orderList" class="flex-1 overflow-y-auto divide-y divide-slate-100">
+                <div id="emptyListState" class="p-8 text-center text-slate-400">
+                    <i class="fa-solid fa-folder-open text-3xl mb-3 text-slate-300"></i>
+                    <p class="text-xs font-medium text-slate-500">尚未載入訂單資料</p>
+                    <p class="text-[11px] text-slate-400 mt-1">請上傳 Excel 檔或點擊上方「載入示範資料」</p>
+                </div>
+            </div>
+
+            <!-- Display Mode Selector Bar -->
+            <div class="p-3 bg-slate-50 border-t border-slate-200 flex flex-col gap-2 text-xs">
+                <div class="flex items-center justify-between">
+                    <label class="flex items-center space-x-1.5 cursor-pointer font-bold text-slate-700 hover:text-indigo-600 transition">
+                        <input type="checkbox" id="chkPrivacyMask" checked onchange="togglePrivacyMask(this.checked)" class="w-3.5 h-3.5 rounded text-indigo-600 focus:ring-indigo-500">
+                        <span class="flex items-center gap-1">
+                            <i class="fa-solid fa-user-shield text-indigo-600"></i>
+                            <span>🔒 個資隱私遮蔽</span>
+                        </span>
+                    </label>
+                </div>
+                <div class="flex items-center justify-between pt-1 border-t border-slate-200/60">
+                    <span class="text-slate-500 font-medium">預覽模式：</span>
+                    <div class="flex bg-slate-200 p-0.5 rounded-md">
+                        <button id="viewSingleBtn" onclick="setViewMode('single')" class="px-2.5 py-1 text-[11px] rounded font-medium bg-white shadow-sm text-slate-800">單頁預覽</button>
+                        <button id="viewAllBtn" onclick="setViewMode('all')" class="px-2.5 py-1 text-[11px] rounded font-medium text-slate-600 hover:text-slate-900">完整列印預覽</button>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Preview Area -->
+        <main class="flex-1 overflow-y-auto p-4 sm:p-8 bg-slate-200 flex flex-col items-center">
+            
+            <!-- Print Controls Bar in Print Tab -->
+            <div class="no-print mb-4 w-[210mm] flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
+                <div class="flex items-center space-x-2 text-xs font-bold text-slate-700">
+                    <i class="fa-solid fa-print text-indigo-600"></i>
+                    <span>A4 訂單批次列印預覽</span>
+                </div>
+                <button id="printBtn" onclick="triggerPrint()" disabled class="px-4 py-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg transition flex items-center space-x-1.5 shadow">
+                    <i class="fa-solid fa-file-pdf"></i>
+                    <span>列印全部 (A4 PDF)</span>
+                </button>
+            </div>
+
+            <div id="printContainer" class="print-container w-full flex flex-col items-center space-y-8">
+                <div id="emptyPreviewState" class="no-print bg-white p-10 rounded-2xl shadow-sm text-center max-w-lg mt-12 border border-slate-200/80">
+                    <div class="w-16 h-16 bg-slate-100 text-slate-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i class="fa-solid fa-file-circle-plus text-2xl"></i>
+                    </div>
+                    <h2 class="text-lg font-bold text-slate-800 mb-2">準備匯出極簡 A4 訂單</h2>
+                    <p class="text-xs text-slate-500 mb-6 leading-relaxed">請將 Excel 檔案拖曳至此處，或點擊右上角「上傳 Excel / CSV」。系統將自動整理品項、補齊電話零號並排版為標準 A4 格式。</p>
+                    <div class="flex justify-center space-x-3">
+                        <button onclick="loadDemoData()" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-medium transition shadow">
+                            載入示範資料測試
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal 1: Stock Criteria Configuration Modal -->
+    <div id="stockConfigModal" class="no-print fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+        <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-100">
+            <div class="flex justify-between items-center pb-3 border-b border-slate-100">
+                <h3 class="text-base font-bold text-slate-800 flex items-center space-x-2">
+                    <i class="fa-solid fa-sliders text-amber-500"></i>
+                    <span>調整第一批備貨基準量</span>
+                </h3>
+                <button onclick="closeStockConfigModal()" class="text-slate-400 hover:text-slate-600">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            
+            <div class="py-4 space-y-3 text-xs max-h-[60vh] overflow-y-auto pr-1">
+                <p class="text-slate-500 text-[11px] bg-amber-50 text-amber-800 p-2.5 rounded-lg border border-amber-200">
+                    💡 您可以在此隨時調整第一批備貨數量（第二批進貨時亦可微調），系統將即時重新連動試算全頁銷量、剩餘數量與庫存預警警示！
+                </p>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">24cm 千格鍋組</label>
+                        <input type="number" id="cfgStock24Grid" class="w-full text-xs border border-slate-300 rounded p-2 font-mono font-bold">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">28cm 千格鍋組</label>
+                        <input type="number" id="cfgStock28Grid" class="w-full text-xs border border-slate-300 rounded p-2 font-mono font-bold">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">28cm 輕量化炒鍋組</label>
+                        <input type="number" id="cfgStock28Wok" class="w-full text-xs border border-slate-300 rounded p-2 font-mono font-bold">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">33cm 輕量化炒鍋組</label>
+                        <input type="number" id="cfgStock33Wok" class="w-full text-xs border border-slate-300 rounded p-2 font-mono font-bold">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">玻璃鍋蓋 S 號</label>
+                        <input type="number" id="cfgStockLidS" class="w-full text-xs border border-slate-300 rounded p-2 font-mono font-bold">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">玻璃鍋蓋 M 號</label>
+                        <input type="number" id="cfgStockLidM" class="w-full text-xs border border-slate-300 rounded p-2 font-mono font-bold">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">玻璃鍋蓋 L 號</label>
+                        <input type="number" id="cfgStockLidL" class="w-full text-xs border border-slate-300 rounded p-2 font-mono font-bold">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">玉子燒煎盤木蓋組</label>
+                        <input type="number" id="cfgStockWoodLid" class="w-full text-xs border border-slate-300 rounded p-2 font-mono font-bold">
+                    </div>
+                </div>
+            </div>
+
+            <div class="pt-3 border-t border-slate-100 flex justify-between items-center">
+                <button onclick="resetDefaultStockConfig()" class="text-xs text-slate-500 hover:text-slate-800 underline">恢復初始預設值</button>
+                <div class="flex space-x-2">
+                    <button onclick="closeStockConfigModal()" class="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg text-xs font-medium hover:bg-slate-200">取消</button>
+                    <button onclick="saveStockConfig()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-500 shadow">儲存並套用</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 2: Shipper / Footer Settings Modal -->
+    <div id="senderModal" class="no-print fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100">
+            <div class="flex justify-between items-center pb-3 border-b border-slate-100">
+                <h3 class="text-base font-bold text-slate-800">出貨頁尾條款設定</h3>
+                <button onclick="closeSenderModal()" class="text-slate-400 hover:text-slate-600">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            
+            <div class="space-y-4 py-4 text-xs">
+                <div>
+                    <label class="block text-slate-700 font-semibold mb-1">品牌名稱</label>
+                    <input type="text" id="cfgBrandName" value="黑柳徹 × 嘖嘖" class="w-full border border-slate-300 rounded p-2 focus:ring-1 focus:ring-slate-800">
+                </div>
+                <div>
+                    <label class="block text-slate-700 font-semibold mb-1">品牌官網 / 網址</label>
+                    <input type="text" id="cfgWebsite" value="tetsu-kuroyanagi.com" class="w-full border border-slate-300 rounded p-2 focus:ring-1 focus:ring-slate-800">
+                </div>
+                <hr class="border-slate-100">
+                <div>
+                    <label class="block text-slate-700 font-semibold mb-1">退換貨需知</label>
+                    <textarea id="cfgTerms" rows="3" class="w-full border border-slate-300 rounded p-2 focus:ring-1 focus:ring-slate-800 leading-relaxed">七天鑑賞期指的是猶豫期而非試用期，您僅可檢視商品外觀但不能使用，若是經過試用發現新品不良或商品本身有問題則不在此限，您仍可提出退貨申請。</textarea>
+                </div>
+                <div>
+                    <label class="block text-slate-700 font-semibold mb-1">聯絡客服</label>
+                    <textarea id="cfgConfirmation" rows="2" class="w-full border border-slate-300 rounded p-2 focus:ring-1 focus:ring-slate-800 leading-relaxed">LINE 官方客服：@tetsu1 (服務時間 10:00 - 18:00)</textarea>
+                </div>
+                <div>
+                    <label class="block text-slate-700 font-semibold mb-1">客服 QR Code 圖片</label>
+                    <div class="flex items-center space-x-3">
+                        <img id="cfgQrPreview" src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://line.me/R/ti/p/%40tetsu1" class="w-12 h-12 border border-slate-200 rounded p-0.5 object-contain bg-white">
+                        <label class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded border border-slate-300 text-xs font-medium cursor-pointer transition">
+                            <span>更換 QR Code 圖片</span>
+                            <input type="file" id="qrFileInput" accept="image/*" class="hidden" onchange="handleQrUpload(event)">
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pt-3 border-t border-slate-100 flex justify-end space-x-2">
+                <button onclick="closeSenderModal()" class="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg text-xs font-medium hover:bg-slate-200">取消</button>
+                <button onclick="saveSenderSettings()" class="px-4 py-2 bg-slate-900 text-white rounded-lg text-xs font-medium hover:bg-slate-800 shadow">儲存變更</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 3: Edit Order Items & Remark Modal -->
+    <div id="itemEditModal" class="no-print fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+        <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-100">
+            <div class="flex justify-between items-center pb-3 border-b border-slate-100">
+                <h3 class="text-base font-bold text-slate-800">編輯訂單品項與備註</h3>
+                <button onclick="closeEditItemModal()" class="text-slate-400 hover:text-slate-600">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            
+            <div class="py-4 space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">訂單備註 (Remark)</label>
+                    <input type="text" id="editRemarkInput" placeholder="無備註" class="w-full text-xs border border-slate-300 rounded p-2 focus:ring-1 focus:ring-slate-800 font-mono text-red-600 font-bold">
+                </div>
+
+                <div>
+                    <div class="flex justify-between items-center mb-2">
+                        <label class="block text-xs font-bold text-slate-700">訂單品項清單</label>
+                        <button onclick="addEditItemRow()" class="text-xs bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-2.5 py-1 rounded-md font-semibold transition flex items-center space-x-1">
+                            <i class="fa-solid fa-plus text-[11px]"></i>
+                            <span>新增品項</span>
+                        </button>
+                    </div>
+
+                    <div id="editItemsRows" class="space-y-2 max-h-60 overflow-y-auto pr-1">
+                        <!-- Dynamic Item Rows -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="pt-3 border-t border-slate-100 flex justify-end space-x-2">
+                <button onclick="closeEditItemModal()" class="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg text-xs font-medium hover:bg-slate-200">取消</button>
+                <button onclick="saveItemEdits()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-500 shadow">儲存變更</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Application Global State
+        let rawJsonData = [];
+        let ordersData = [];
+        let activeOrderIndex = 0;
+        let viewMode = 'single'; // 'single' or 'all'
+        let currentTab = 'dashboard'; // 'dashboard' or 'print'
+        let enablePrivacyMask = true; // Privacy Masking Toggle State
+
+        // First Batch Stock Default Preset
+        let stockConfig = {
+            '超早鳥｜24cm千格鍋組': 400,
+            '超早鳥｜28cm千格鍋組': 1600,
+            '超早鳥｜28cm輕量化炒鍋組': 600,
+            '超早鳥｜33cm輕量化炒鍋組': 350,
+            '金屬矽膠玻璃鍋蓋S號': 308,
+            '金屬矽膠玻璃鍋蓋M號': 718,
+            '金屬矽膠玻璃鍋蓋L號': 417,
+            '玉子燒煎盤木蓋組': 500
+        };
+
+        // Color Mapping Palette (Morandi theme)
+        const morandiColors = {
+            '超早鳥｜24cm千格鍋組': '#E6F0FA',
+            '超早鳥｜28cm千格鍋組': '#EAF5E9',
+            '超早鳥｜28cm煎炒雙鍋組': '#FFF3E0',
+            '超早鳥｜28cm輕量化炒鍋組': '#F3E5F5',
+            '超早鳥｜33cm輕量化炒鍋組': '#FFFDE7',
+            '金屬矽膠玻璃鍋蓋S號': '#E8F5E9',
+            '金屬矽膠玻璃鍋蓋M號': '#E1F5FE',
+            '金屬矽膠玻璃鍋蓋L號': '#EDEDED',
+            '玉子燒煎盤木蓋組': '#FBE9E7'
+        };
+
+        // Sender Configuration State
+        let senderConfig = {
+            brandName: '黑柳徹 × 嘖嘖',
+            website: 'tetsu-kuroyanagi.com',
+            terms: '七天鑑賞期指的是猶豫期而非試用期，您僅可檢視商品外觀但不能使用，若是經過試用發現新品不良或商品本身有問題則不在此限，您仍可提出退貨申請。',
+            confirmation: 'LINE 官方客服：@tetsu1 (服務時間 10:00 - 18:00)',
+            qrCodeUrl: 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://line.me/R/ti/p/%40tetsu1'
+        };
+
+        // Preset Options
+        const presetProductOptions = [
+            "24cm千格煎鍋組 (524)",
+            "28cm千格煎鍋組 (528)",
+            "28cm輕量化千格炒鍋組 (511)",
+            "33cm輕量化千格炒鍋組 (513)",
+            "28cm煎炒雙鍋組 (511 + 528)",
+            "玉子燒煎盤木蓋組 (519)",
+            "金屬矽膠玻璃鍋蓋S號",
+            "金屬矽膠玻璃鍋蓋M號",
+            "金屬矽膠玻璃鍋蓋L號"
+        ];
+
+        // Demo Fictional Raw Data
+        const demoRawData = [
+            { "訂單編號": "P24961GHWX6PUIIQKMOF", "贊助選項 ID": "184260", "贊助選項": "24cm千格鍋組", "加購選項 ID": "186330\n186402", "加購選項": "金屬矽膠玻璃鍋蓋S號 + 玉子燒煎盤木蓋組", "收件人": "莊士傑", "連絡電話": "911069122", "郵遞區號": "324", "地址": "桃園市平鎮區環南路223巷4號", "備註": "管理室代收" },
+            { "訂單編號": "P24961HTTODB6CQB7JTK", "贊助選項 ID": "184260", "贊助選項": "24cm千格鍋組", "加購選項 ID": "", "加購選項": "", "收件人": "胡禮謙", "連絡電話": "988779841", "郵遞區號": "406", "地址": "臺州市北屯區三光一街3號2樓", "備註": "" },
+            { "訂單編號": "P24961Z8HQU8TFW5OYLQ", "贊助選項 ID": "186268", "贊助選項": "28cm千格鍋組", "加購選項 ID": "186331", "加購選項": "金屬矽膠玻璃鍋蓋M號", "收件人": "黃其慧", "連絡電話": "972770621", "郵遞區號": "108", "地址": "台北市萬華區莒光路335號11樓", "備註": "配送前請先電聯" },
+            { "訂單編號": "P24961HWSTSCWHPA0VLY", "贊助選項 ID": "186937", "贊助選項": "28cm煎炒雙鍋組", "加購選項 ID": "186331\n186402", "加購選項": "金屬矽膠玻璃鍋蓋M號 + 玉子燒煎盤木蓋組", "收件人": "詹芳慈", "連絡電話": "911382138", "郵遞區號": "10357", "地址": "臺南市中西區健康路一段158號601室", "備註": "要管理員簽收" }
+        ];
+
+        let editingOrderIndex = -1;
+        let tempEditItems = [];
+
+        function maskName(str) {
+            if (!str) return '';
+            const clean = String(str).trim();
+            if (clean.length <= 1) return clean;
+            if (clean.length === 2) return clean[0] + '○';
+            if (clean.length === 3) return clean[0] + '○' + clean[2];
+            return clean[0] + '○'.repeat(clean.length - 2) + clean[clean.length - 1];
+        }
+
+        function maskPhone(str) {
+            if (!str) return '';
+            const clean = String(str).trim();
+            if (clean.length >= 10) {
+                return clean.substring(0, 4) + '***' + clean.substring(7);
+            }
+            if (clean.length >= 7) {
+                return clean.substring(0, 3) + '***' + clean.substring(6);
+            }
+            return clean;
+        }
+
+        function maskAddress(str) {
+            if (!str) return '';
+            const clean = String(str).trim();
+            if (clean.length > 8) {
+                return clean.substring(0, clean.length - 6) + '******';
+            }
+            return clean;
+        }
+
+        function togglePrivacyMask(checked) {
+            enablePrivacyMask = checked;
+            renderSidebar();
+            renderPreview();
+            showToast(checked ? '🔒 已開啟顧客個資隱私遮蔽' : '🔓 已解除個資遮蔽（顯示完整姓名地址）');
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function showToast(msg) {
+            let toast = document.getElementById('toastMsg');
+            if (!toast) {
+                toast = document.createElement('div');
+                toast.id = 'toastMsg';
+                toast.className = 'no-print fixed bottom-5 right-5 bg-slate-900 text-white text-xs px-4 py-2.5 rounded-lg shadow-xl z-50 transition-opacity duration-300 opacity-0 pointer-events-none flex items-center space-x-2';
+                document.body.appendChild(toast);
+            }
+            toast.innerHTML = msg;
+            toast.classList.remove('opacity-0', 'pointer-events-none');
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'pointer-events-none');
+            }, 2500);
+        }
+
+        function formatPhoneNumber(phone) {
+            if (!phone) return '';
+            let str = String(phone).trim().replace(/^['’]+/, '');
+            if (str.startsWith('+886')) {
+                str = '0' + str.slice(4);
+            } else if (str.startsWith('886') && str.length >= 11) {
+                str = '0' + str.slice(3);
+            }
+            const digits = str.replace(/[^\d]/g, '');
+            if (digits.length === 9 && digits.startsWith('9')) {
+                return '0' + digits;
+            }
+            return digits || str;
+        }
+
+        function findValue(row, possibleKeys) {
+            if (!row) return '';
+            for (let key of Object.keys(row)) {
+                const cleanKey = String(key).trim().toLowerCase();
+                for (let k of possibleKeys) {
+                    if (cleanKey === k.toLowerCase() || cleanKey.includes(k.toLowerCase())) {
+                        return row[key];
+                    }
+                }
+            }
+            return '';
+        }
+
+        function getCleanOptionOverview(row) {
+            const optId = String(findValue(row, ['贊助選項 ID', '贊助選項ID', 'option id']) || '');
+            const optName = String(findValue(row, ['贊助選項', '選項', '贊助品項']) || '');
+            
+            let baseName = '';
+            if (optId === '184260' || optName.includes('24cm千格')) baseName = '超早鳥｜24cm千格鍋組';
+            else if (optId === '186268' || optName.includes('28cm千格煎鍋') || optName.includes('28cm千格鍋組')) baseName = '超早鳥｜28cm千格鍋組';
+            else if (optId === '186937' || optName.includes('28cm煎炒雙鍋組')) baseName = '超早鳥｜28cm煎炒雙鍋組';
+            else if (optId === '186269' || optName.includes('28cm輕量化千格炒鍋') || optName.includes('28cm輕量化炒鍋組')) baseName = '超早鳥｜28cm輕量化炒鍋組';
+            else if (optId === '186270' || optName.includes('33cm輕量化千格炒鍋') || optName.includes('33cm輕量化炒鍋組')) baseName = '超早鳥｜33cm輕量化炒鍋組';
+            else baseName = optName || '贊助品項';
+
+            const parts = [baseName];
+
+            const addonStr = String(findValue(row, ['加購選項', '加購']) || '');
+            const addonIdStr = String(findValue(row, ['加購選項 ID', '加購選項ID']) || '');
+
+            if (addonIdStr.includes('186330') || addonStr.includes('S號')) {
+                parts.push('金屬矽膠玻璃鍋蓋S號');
+            }
+            if (addonIdStr.includes('188278') || addonStr.includes('M號（適用直徑26至30cm鍋具）×2') || addonStr.includes('鍋蓋M號 x2')) {
+                parts.push('金屬矽膠玻璃鍋蓋M號 x2');
+            } else if (addonIdStr.includes('186331') || addonStr.includes('M號')) {
+                parts.push('金屬矽膠玻璃鍋蓋M號');
+            }
+            if (addonIdStr.includes('186332') || addonStr.includes('L號')) {
+                parts.push('金屬矽膠玻璃鍋蓋L號');
+            }
+            if (addonIdStr.includes('186402') || addonStr.includes('木蓋')) {
+                parts.push('玉子燒煎盤木蓋組');
+            }
+
+            return parts.join(' + ');
+        }
+
+        function parseItemsFromOverview(overviewStr) {
+            if (!overviewStr) return [];
+            const parts = overviewStr.split('+').map(p => p.trim()).filter(Boolean);
+            return parts.map(name => ({
+                fullName: name,
+                name: name,
+                quantity: 1
+            }));
+        }
+
+        function handleFileUpload(e) {
+            const file = e.target ? (e.target.files && e.target.files[0]) : e;
+            if (!file) return;
+
+            if (typeof XLSX === 'undefined') {
+                showToast('❌ Excel 解析元件尚未載入完成，請確認網路連線');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                try {
+                    const data = new Uint8Array(evt.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    
+                    if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+                        showToast('❌ Excel 檔案內沒有工作表');
+                        return;
+                    }
+
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    let jsonArray = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+                    
+                    if (!jsonArray || jsonArray.length === 0) {
+                        showToast('❌ Excel 檔案內沒有資料或格式無法讀取');
+                        return;
+                    }
+
+                    processParsedJson(jsonArray);
+                    showToast(`✅ 成功匯入 ${jsonArray.length} 筆訂單！`);
+                } catch (err) {
+                    console.error('解析 Excel 失敗:', err);
+                    showToast('❌ 讀取 Excel 失敗，請確認檔案格式是否正確 (.xlsx, .xls, .csv)');
+                } finally {
+                    if (e.target) e.target.value = '';
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function loadDemoData() {
+            processParsedJson(demoRawData);
+            showToast('✅ 已成功載入示範測試資料！');
+        }
+
+        function initDragAndDrop() {
+            const overlay = document.getElementById('dragDropOverlay');
+            let dragCounter = 0;
+
+            window.addEventListener('dragenter', (e) => {
+                e.preventDefault();
+                dragCounter++;
+                if (overlay) overlay.classList.remove('hidden');
+            });
+
+            window.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                dragCounter--;
+                if (dragCounter <= 0 && overlay) {
+                    overlay.classList.add('hidden');
+                    dragCounter = 0;
+                }
+            });
+
+            window.addEventListener('dragover', (e) => {
+                e.preventDefault();
+            });
+
+            window.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dragCounter = 0;
+                if (overlay) overlay.classList.add('hidden');
+
+                if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    const droppedFile = e.dataTransfer.files[0];
+                    handleFileUpload(droppedFile);
+                }
+            });
+        }
+
+        function processParsedJson(jsonArray) {
+            rawJsonData = jsonArray;
+
+            ordersData = jsonArray.map((row, index) => {
+                const id = findValue(row, ['訂單編號', '訂單號碼', '訂單號', 'order id', 'order no', '交易序號']) || `ORD-${1000 + index}`;
+                const overview = getCleanOptionOverview(row);
+                const recipient = findValue(row, ['收件人', '姓名', '收件人姓名', 'name', 'recipient']) || '收件者';
+                const rawPhone = findValue(row, ['連絡電話', '聯絡電話', '電話', '手機', 'phone']) || '';
+                const zipcode = findValue(row, ['郵遞區號', '郵遞區', 'zip', 'zipcode']) || '';
+                const address = findValue(row, ['地址', '收件地址', '送貨地址', 'address']) || '';
+                const remark = findValue(row, ['備註', '訂單備註', '買家備註', 'remark', 'note']) || '';
+
+                const items = parseItemsFromOverview(overview);
+
+                return {
+                    id: String(id).trim(),
+                    overview: overview,
+                    items: items,
+                    recipient: String(recipient).trim(),
+                    phone: formatPhoneNumber(rawPhone),
+                    zipcode: String(zipcode).trim(),
+                    address: String(address).trim(),
+                    remark: String(remark).trim(),
+                    optId: String(findValue(row, ['贊助選項 ID', '贊助選項ID']) || '')
+                };
+            });
+
+            activeOrderIndex = 0;
+            document.getElementById('orderCount').innerText = ordersData.length;
+            document.getElementById('printBtn').disabled = ordersData.length === 0;
+
+            populateComboFilterDropdown();
+            renderDashboard();
+            filterOrders();
+        }
+
+        function populateComboFilterDropdown() {
+            const select = document.getElementById('comboFilterSelect');
+            if (!select) return;
+
+            const currentVal = select.value;
+            const comboCounts = {};
+            ordersData.forEach(o => {
+                const name = o.overview || '未指定讚助品項';
+                comboCounts[name] = (comboCounts[name] || 0) + 1;
+            });
+
+            let html = `<option value="ALL">📦 所有讚助組合 (共 ${ordersData.length} 筆)</option>`;
+            Object.keys(comboCounts).forEach(comboName => {
+                html += `<option value="${escapeHtml(comboName)}">${escapeHtml(comboName)} (${comboCounts[comboName]} 筆)</option>`;
+            });
+
+            select.innerHTML = html;
+            if (Object.keys(comboCounts).includes(currentVal) || currentVal === 'ALL') {
+                select.value = currentVal;
+            } else {
+                select.value = 'ALL';
+            }
+        }
+
+        function getFilteredOrders() {
+            const query = (document.getElementById('searchInput')?.value || '').trim().toLowerCase();
+            const comboFilter = document.getElementById('comboFilterSelect')?.value || 'ALL';
+
+            return ordersData.filter(o => {
+                const matchesQuery = !query || (
+                    o.id.toLowerCase().includes(query) ||
+                    o.recipient.toLowerCase().includes(query) ||
+                    o.phone.toLowerCase().includes(query) ||
+                    o.address.toLowerCase().includes(query)
+                );
+                const matchesCombo = (comboFilter === 'ALL') || (o.overview === comboFilter);
+                return matchesQuery && matchesCombo;
+            });
+        }
+
+        function filterAndPrintCombo(comboName) {
+            switchTab('print');
+            const select = document.getElementById('comboFilterSelect');
+            if (select) {
+                select.value = comboName;
+            }
+            setViewMode('all');
+            filterOrders();
+            showToast(`已切換至「${comboName}」列印預覽`);
+        }
+
+        function renderDashboard() {
+            if (!ordersData.length) {
+                document.getElementById('tblComboBody').innerHTML = '<tr><td colspan="4" class="p-8 text-center text-slate-400">尚未載入訂單資料</td></tr>';
+                document.getElementById('tblSingleBody').innerHTML = '<tr><td colspan="4" class="p-8 text-center text-slate-400">尚未載入訂單資料</td></tr>';
+                return;
+            }
+
+            // 1. Group combinations
+            const comboCounts = {};
+            ordersData.forEach(o => {
+                const name = o.overview || '未指定讚助品項';
+                comboCounts[name] = (comboCounts[name] || 0) + 1;
+            });
+
+            // Category Groups Definition
+            const categoryGroups = [
+                { cat: '超早鳥｜24cm千格鍋組', color: morandiColors['超早鳥｜24cm千格鍋組'] },
+                { cat: '超早鳥｜28cm千格鍋組', color: morandiColors['超早鳥｜28cm千格鍋組'] },
+                { cat: '超早鳥｜28cm煎炒雙鍋組', color: morandiColors['超早鳥｜28cm煎炒雙鍋組'] },
+                { cat: '超早鳥｜28cm輕量化炒鍋組', color: morandiColors['超早鳥｜28cm輕量化炒鍋組'] },
+                { cat: '超早鳥｜33cm輕量化炒鍋組', color: morandiColors['超早鳥｜33cm輕量化炒鍋組'] }
+            ];
+
+            let comboHtml = '';
+            let totalPansCount = 0;
+
+            categoryGroups.forEach(group => {
+                const matchedCombos = Object.keys(comboCounts).filter(k => k.startsWith(group.cat));
+                const catTotal = matchedCombos.reduce((sum, k) => sum + comboCounts[k], 0);
+
+                if (matchedCombos.length > 0) {
+                    matchedCombos.forEach((comboName, idx) => {
+                        const count = comboCounts[comboName];
+                        const bgStyle = `background-color: ${group.color};`;
+
+                        comboHtml += `<tr class="hover:opacity-90 border-b border-slate-200/80" style="${bgStyle}">`;
+                        comboHtml += `<td class="py-2.5 px-3 font-medium text-slate-800 border-r border-slate-200/80">${escapeHtml(comboName)}</td>`;
+                        comboHtml += `<td class="py-2.5 px-3 text-center font-bold text-slate-900 border-r border-slate-200/80">${count}</td>`;
+                        
+                        if (idx === 0) {
+                            comboHtml += `<td rowspan="${matchedCombos.length}" class="py-2.5 px-3 text-center text-2xl font-extrabold text-slate-900 border-r border-slate-200/80 align-middle bg-white/40">${catTotal}</td>`;
+                        }
+
+                        comboHtml += `<td class="py-2.5 px-3 text-center">
+                            <div class="flex items-center justify-center space-x-1">
+                                <button onclick="exportSingleComboExcel('${escapeHtml(comboName)}')" class="px-2 py-1 text-[11px] font-bold bg-emerald-700 hover:bg-emerald-600 text-white rounded transition flex items-center justify-center space-x-1 shadow-sm" title="匯出新竹物流格式 Excel">
+                                    <i class="fa-solid fa-file-export"></i>
+                                    <span>匯出</span>
+                                </button>
+                                <button onclick="filterAndPrintCombo('${escapeHtml(comboName)}')" class="px-2 py-1 text-[11px] font-bold bg-slate-800 hover:bg-slate-700 text-white rounded transition flex items-center justify-center space-x-1 shadow-sm" title="前去 A4 列印此組合">
+                                    <i class="fa-solid fa-print"></i>
+                                    <span>列印</span>
+                                </button>
+                            </div>
+                        </td>`;
+                        comboHtml += `</tr>`;
+                    });
+                }
+            });
+
+            document.getElementById('tblComboBody').innerHTML = comboHtml || '<tr><td colspan="4" class="p-6 text-center text-slate-400">無相符資料</td></tr>';
+            document.getElementById('comboCountBadge').innerText = `${Object.keys(comboCounts).length} 個組合`;
+
+            // 2. Single item demand calculation
+            const singleDemand = {
+                '超早鳥｜24cm千格鍋組': 0,
+                '超早鳥｜28cm千格鍋組': 0,
+                '超早鳥｜28cm輕量化炒鍋組': 0,
+                '超早鳥｜33cm輕量化炒鍋組': 0,
+                '金屬矽膠玻璃鍋蓋S號': 0,
+                '金屬矽膠玻璃鍋蓋M號': 0,
+                '金屬矽膠玻璃鍋蓋L號': 0,
+                '玉子燒煎盤木蓋組': 0
+            };
+
+            ordersData.forEach(o => {
+                const ov = o.overview || '';
+                if (ov.includes('24cm千格鍋組')) { singleDemand['超早鳥｜24cm千格鍋組']++; totalPansCount++; }
+                if (ov.includes('28cm千格鍋組')) { singleDemand['超早鳥｜28cm千格鍋組']++; totalPansCount++; }
+                if (ov.includes('28cm煎炒雙鍋組')) {
+                    singleDemand['超早鳥｜28cm千格鍋組']++;
+                    singleDemand['超早鳥｜28cm輕量化炒鍋組']++;
+                    totalPansCount += 2;
+                }
+                if (ov.includes('28cm輕量化炒鍋組')) { singleDemand['超早鳥｜28cm輕量化炒鍋組']++; totalPansCount++; }
+                if (ov.includes('33cm輕量化炒鍋組')) { singleDemand['超早鳥｜33cm輕量化炒鍋組']++; totalPansCount++; }
+
+                if (ov.includes('玻璃鍋蓋S號')) singleDemand['金屬矽膠玻璃鍋蓋S號']++;
+                if (ov.includes('玻璃鍋蓋M號 x2')) singleDemand['金屬矽膠玻璃鍋蓋M號'] += 2;
+                else if (ov.includes('玻璃鍋蓋M號')) singleDemand['金屬矽膠玻璃鍋蓋M號']++;
+                if (ov.includes('玻璃鍋蓋L號')) singleDemand['金屬矽膠玻璃鍋蓋L號']++;
+                if (ov.includes('木蓋')) singleDemand['玉子燒煎盤木蓋組']++;
+            });
+
+            let singleHtml = '';
+            let oversoldAlertCount = 0;
+
+            Object.keys(singleDemand).forEach(itemName => {
+                const demand = singleDemand[itemName];
+                const stock = stockConfig[itemName] || 0;
+                const rem = stock - demand;
+                let statusText = '';
+                let statusBadgeStyle = '';
+                let bgColor = '#ffffff';
+
+                if (rem < 0) {
+                    oversoldAlertCount++;
+                    statusText = `超賣 ${Math.abs(rem)} 件（透支庫存）`;
+                    statusBadgeStyle = 'background-color: #ef4444; color: #ffffff; font-weight: bold;';
+                    bgColor = '#fef2f2';
+                } else if (rem <= 50) {
+                    statusText = `庫存緊張（僅剩 ${rem} 件）`;
+                    statusBadgeStyle = 'background-color: #fef3c7; color: #92400e; font-weight: bold;';
+                    bgColor = '#fffbeb';
+                } else {
+                    statusText = `庫存充足（剩餘 ${rem} 件）`;
+                    statusBadgeStyle = 'background-color: #d1fae5; color: #065f46; font-weight: bold;';
+                }
+
+                singleHtml += `<tr style="background-color: ${bgColor};" class="border-b border-slate-200/80">`;
+                singleHtml += `<td class="py-2.5 px-3 font-medium text-slate-800 border-r border-slate-200/80">${escapeHtml(itemName)}</td>`;
+                singleHtml += `<td class="py-2.5 px-3 text-center font-bold text-slate-900 border-r border-slate-200/80">${demand}</td>`;
+                singleHtml += `<td class="py-2.5 px-3 text-center font-bold text-slate-900 border-r border-slate-200/80">${stock}</td>`;
+                singleHtml += `<td class="py-2.5 px-3 text-center text-xs"><span class="px-2 py-1 rounded inline-block" style="${statusBadgeStyle}">${statusText}</span></td>`;
+                singleHtml += `</tr>`;
+            });
+
+            document.getElementById('tblSingleBody').innerHTML = singleHtml;
+
+            // Update KPI cards
+            document.getElementById('kpiTotalOrders').innerText = ordersData.length.toLocaleString();
+            document.getElementById('kpiTotalPansSold').innerText = totalPansCount.toLocaleString();
+
+            const sumStock = Object.values(stockConfig).reduce((a, b) => a + b, 0);
+            document.getElementById('kpiTotalStock').innerText = sumStock.toLocaleString();
+
+            const alertEl = document.getElementById('kpiOversoldAlert');
+            const alertBg = document.getElementById('kpiAlertIconBg');
+            alertEl.innerText = oversoldAlertCount;
+
+            if (oversoldAlertCount > 0) {
+                alertEl.className = 'text-xl font-extrabold text-red-600 font-mono';
+                alertBg.className = 'w-10 h-10 rounded-lg bg-red-100 text-red-600 flex items-center justify-center font-bold animate-pulse';
+            } else {
+                alertEl.className = 'text-xl font-extrabold text-emerald-600 font-mono';
+                alertBg.className = 'w-10 h-10 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold';
+            }
+        }
+
+        function openStockConfigModal() {
+            document.getElementById('cfgStock24Grid').value = stockConfig['超早鳥｜24cm千格鍋組'];
+            document.getElementById('cfgStock28Grid').value = stockConfig['超早鳥｜28cm千格鍋組'];
+            document.getElementById('cfgStock28Wok').value = stockConfig['超早鳥｜28cm輕量化炒鍋組'];
+            document.getElementById('cfgStock33Wok').value = stockConfig['超早鳥｜33cm輕量化炒鍋組'];
+            document.getElementById('cfgStockLidS').value = stockConfig['金屬矽膠玻璃鍋蓋S號'];
+            document.getElementById('cfgStockLidM').value = stockConfig['金屬矽膠玻璃鍋蓋M號'];
+            document.getElementById('cfgStockLidL').value = stockConfig['金屬矽膠玻璃鍋蓋L號'];
+            document.getElementById('cfgStockWoodLid').value = stockConfig['玉子燒煎盤木蓋組'];
+
+            document.getElementById('stockConfigModal').classList.remove('hidden');
+        }
+
+        function closeStockConfigModal() {
+            document.getElementById('stockConfigModal').classList.add('hidden');
+        }
+
+        function resetDefaultStockConfig() {
+            stockConfig = {
+                '超早鳥｜24cm千格鍋組': 400,
+                '超早鳥｜28cm千格鍋組': 1600,
+                '超早鳥｜28cm輕量化炒鍋組': 600,
+                '超早鳥｜33cm輕量化炒鍋組': 350,
+                '金屬矽膠玻璃鍋蓋S號': 308,
+                '金屬矽膠玻璃鍋蓋M號': 718,
+                '金屬矽膠玻璃鍋蓋L號': 417,
+                '玉子燒煎盤木蓋組': 500
+            };
+            openStockConfigModal();
+            showToast('已恢復預設備貨基準量');
+        }
+
+        function saveStockConfig() {
+            stockConfig['超早鳥｜24cm千格鍋組'] = parseInt(document.getElementById('cfgStock24Grid').value) || 0;
+            stockConfig['超早鳥｜28cm千格鍋組'] = parseInt(document.getElementById('cfgStock28Grid').value) || 0;
+            stockConfig['超早鳥｜28cm輕量化炒鍋組'] = parseInt(document.getElementById('cfgStock28Wok').value) || 0;
+            stockConfig['超早鳥｜33cm輕量化炒鍋組'] = parseInt(document.getElementById('cfgStock33Wok').value) || 0;
+            stockConfig['金屬矽膠玻璃鍋蓋S號'] = parseInt(document.getElementById('cfgStockLidS').value) || 0;
+            stockConfig['金屬矽膠玻璃鍋蓋M號'] = parseInt(document.getElementById('cfgStockLidM').value) || 0;
+            stockConfig['金屬矽膠玻璃鍋蓋L號'] = parseInt(document.getElementById('cfgStockLidL').value) || 0;
+            stockConfig['玉子燒煎盤木蓋組'] = parseInt(document.getElementById('cfgStockWoodLid').value) || 0;
+
+            closeStockConfigModal();
+            renderDashboard();
+            showToast('已更新第一批備貨基準量！');
+        }
+
+        function switchTab(tab) {
+            currentTab = tab;
+            const btnDash = document.getElementById('tabBtnDash');
+            const btnPrint = document.getElementById('tabBtnPrint');
+            const contentDash = document.getElementById('tabContentDash');
+            const contentPrint = document.getElementById('tabContentPrint');
+
+            if (tab === 'dashboard') {
+                btnDash.className = 'px-4 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center space-x-1.5 bg-indigo-600 text-white shadow';
+                btnPrint.className = 'px-4 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center space-x-1.5 text-slate-300 hover:text-white hover:bg-slate-700';
+                contentDash.classList.remove('hidden');
+                contentPrint.classList.add('hidden');
+            } else {
+                btnPrint.className = 'px-4 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center space-x-1.5 bg-indigo-600 text-white shadow';
+                btnDash.className = 'px-4 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center space-x-1.5 text-slate-300 hover:text-white hover:bg-slate-700';
+                contentPrint.classList.remove('hidden');
+                contentDash.classList.add('hidden');
+            }
+        }
+
+        /* ===== 🚚 新竹物流標準 12 欄位匯出邏輯 (全部) ===== */
+        function exportHsinchuLogisticsExcel() {
+            if (!ordersData || ordersData.length === 0) {
+                showToast('⚠️ 請先匯入或載入訂單資料！');
+                return;
+            }
+
+            const exportData = [
+                [
+                    "序號(無用途)",
+                    "訂單號",
+                    "收件人姓名(必填)",
+                    "收件人地址(必填)",
+                    "收件人電話(必填)",
+                    "託運備註",
+                    "(商品別編號)",
+                    "商品數量(必填)",
+                    "才積/重量/總長",
+                    "代收貨款",
+                    "指定配送日期YYYYMMDD",
+                    "指定配送時間"
+                ]
+            ];
+
+            ordersData.forEach((order) => {
+                const fullAddr = [order.zipcode, order.address].filter(Boolean).join(' ').trim();
+                const formattedPhone = formatPhoneNumber(order.phone);
+
+                exportData.push([
+                    '',                       // 1. 序號(無用途)
+                    order.id || '',           // 2. 訂單號 (A欄)
+                    order.recipient || '',    // 3. 收件人姓名(必填) (C欄)
+                    fullAddr || '',           // 4. 收件人地址(必填) (E欄 Zip + F欄 Address)
+                    formattedPhone || '',     // 5. 收件人電話(必填) (D欄 補0電話)
+                    order.remark || '',       // 6. 託運備註 (M欄 備註)
+                    '',                       // 7. (商品別編號)
+                    1,                        // 8. 商品數量(必填)
+                    2,                        // 9. 才積/重量/總長
+                    '',                       // 10. 代收貨款
+                    '',                       // 11. 指定配送日期
+                    ''                        // 12. 指定配送時間
+                ]);
+            });
+
+            const worksheet = XLSX.utils.aoa_to_sheet(exportData);
+            
+            worksheet['!cols'] = [
+                { wch: 14 },
+                { wch: 22 },
+                { wch: 18 },
+                { wch: 50 },
+                { wch: 18 },
+                { wch: 30 },
+                { wch: 15 },
+                { wch: 16 },
+                { wch: 18 },
+                { wch: 12 },
+                { wch: 22 },
+                { wch: 16 }
+            ];
+
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "新竹物流託運單");
+
+            const now = new Date();
+            const timeStamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+
+            XLSX.writeFile(workbook, `新竹物流託運單匯入檔_${timeStamp}.xlsx`);
+            showToast(`✅ 已成功匯出新竹物流 Excel 檔 (共 ${ordersData.length} 筆資料)`);
+        }
+
+        /* ===== 🚚 個別組合匯出：轉換為新竹物流 12 欄位格式 ===== */
+        function exportSingleComboExcel(comboName) {
+            if (!ordersData.length) return;
+
+            const filtered = ordersData.filter(o => o.overview === comboName);
+            if (!filtered.length) {
+                showToast('⚠️ 找不到該組合的訂單');
+                return;
+            }
+
+            const exportData = [
+                [
+                    "序號(無用途)",
+                    "訂單號",
+                    "收件人姓名(必填)",
+                    "收件人地址(必填)",
+                    "收件人電話(必填)",
+                    "託運備註",
+                    "(商品別編號)",
+                    "商品數量(必填)",
+                    "才積/重量/總長",
+                    "代收貨款",
+                    "指定配送日期YYYYMMDD",
+                    "指定配送時間"
+                ]
+            ];
+
+            filtered.forEach(o => {
+                const fullAddr = [o.zipcode, o.address].filter(Boolean).join(' ').trim();
+                const formattedPhone = formatPhoneNumber(o.phone);
+
+                exportData.push([
+                    '',                       // 1. 序號
+                    o.id || '',               // 2. 訂單號 (A欄)
+                    o.recipient || '',        // 3. 收件人姓名 (C欄)
+                    fullAddr || '',           // 4. 收件人地址 (E欄 Zip + F欄 Address)
+                    formattedPhone || '',     // 5. 收件人電話 (D欄 補0電話)
+                    o.remark || '',           // 6. 託運備註 (M欄 備註)
+                    '',                       // 7. (商品別編號)
+                    1,                        // 8. 商品數量
+                    2,                        // 9. 才積/重量
+                    '',                       // 10. 代收貨款
+                    '',                       // 11. 配送日期
+                    ''                        // 12. 配送時間
+                ]);
+            });
+
+            const worksheet = XLSX.utils.aoa_to_sheet(exportData);
+            worksheet['!cols'] = [
+                { wch: 14 },
+                { wch: 22 },
+                { wch: 18 },
+                { wch: 50 },
+                { wch: 18 },
+                { wch: 30 },
+                { wch: 15 },
+                { wch: 16 },
+                { wch: 18 },
+                { wch: 12 },
+                { wch: 22 },
+                { wch: 16 }
+            ];
+
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, worksheet, "新竹物流託運單");
+
+            const safeName = comboName.replace(/[/\\?%*:|"<>]/g, '_').slice(0, 25);
+            XLSX.writeFile(wb, `新竹物流託運單_${safeName}_(${filtered.length}筆).xlsx`);
+            showToast(`✅ 成功匯出 [${comboName}] 新竹物流託運單 (共 ${filtered.length} 筆)`);
+        }
+
+        function exportMasterExcel() {
+            if (!ordersData.length) {
+                showToast('⚠️ 請先匯入或載入訂單資料');
+                return;
+            }
+
+            const wb = XLSX.utils.book_new();
+
+            const summaryRows = [
+                ["", "贊助品項", "數量", "合計訂單", "", "品項統計", "數量", "備貨", "缺少", "說明"]
+            ];
+
+            const singleDemand = {
+                '超早鳥｜24cm千格鍋組': 0,
+                '超早鳥｜28cm千格鍋組': 0,
+                '超早鳥｜28cm輕量化炒鍋組': 0,
+                '超早鳥｜33cm輕量化炒鍋組': 0,
+                '金屬矽膠玻璃鍋蓋S號': 0,
+                '金屬矽膠玻璃鍋蓋M號': 0,
+                '金屬矽膠玻璃鍋蓋L號': 0,
+                '玉子燒煎盤木蓋組': 0
+            };
+
+            ordersData.forEach(o => {
+                const ov = o.overview;
+                if (ov.includes('24cm千格鍋組')) singleDemand['超早鳥｜24cm千格鍋組']++;
+                if (ov.includes('28cm千格鍋組')) singleDemand['超早鳥｜28cm千格鍋組']++;
+                if (ov.includes('28cm煎炒雙鍋組')) {
+                    singleDemand['超早鳥｜28cm千格鍋組']++;
+                    singleDemand['超早鳥｜28cm輕量化炒鍋組']++;
+                }
+                if (ov.includes('28cm輕量化炒鍋組')) singleDemand['超早鳥｜28cm輕量化炒鍋組']++;
+                if (ov.includes('33cm輕量化炒鍋組')) singleDemand['超早鳥｜33cm輕量化炒鍋組']++;
+
+                if (ov.includes('玻璃鍋蓋S號')) singleDemand['金屬矽膠玻璃鍋蓋S號']++;
+                if (ov.includes('玻璃鍋蓋M號 x2')) singleDemand['金屬矽膠玻璃鍋蓋M號'] += 2;
+                else if (ov.includes('玻璃鍋蓋M號')) singleDemand['金屬矽膠玻璃鍋蓋M號']++;
+                if (ov.includes('玻璃鍋蓋L號')) singleDemand['金屬矽膠玻璃鍋蓋L號']++;
+                if (ov.includes('木蓋')) singleDemand['玉子燒煎盤木蓋組']++;
+            });
+
+            const comboCounts = {};
+            ordersData.forEach(o => {
+                const name = o.overview || '未指定讚助品項';
+                comboCounts[name] = (comboCounts[name] || 0) + 1;
+            });
+
+            const categoryGroups = [
+                '超早鳥｜24cm千格鍋組',
+                '超早鳥｜28cm千格鍋組',
+                '超早鳥｜28cm煎炒雙鍋組',
+                '超早鳥｜28cm輕量化炒鍋組',
+                '超早鳥｜33cm輕量化炒鍋組'
+            ];
+
+            const singleKeys = Object.keys(singleDemand);
+
+            let rowCounter = 0;
+            categoryGroups.forEach(catName => {
+                const matchedCombos = Object.keys(comboCounts).filter(k => k.startsWith(catName));
+                const catTotal = matchedCombos.reduce((sum, k) => sum + comboCounts[k], 0);
+
+                matchedCombos.forEach((comboName, idx) => {
+                    const cnt = comboCounts[comboName];
+                    const singleKey = singleKeys[rowCounter] || '';
+                    const singleDemandVal = singleKey ? singleDemand[singleKey] : '';
+                    const stockVal = singleKey ? (stockConfig[singleKey] || 0) : '';
+                    const remVal = singleKey ? (stockVal - singleDemandVal) : '';
+                    let remarkStr = '';
+
+                    if (singleKey) {
+                        if (remVal < 0) remarkStr = `超賣 ${Math.abs(remVal)} 件（透支庫存）`;
+                        else if (remVal <= 50) remarkStr = `庫存緊張（僅剩 ${remVal} 件）`;
+                        else remarkStr = `庫存充足（剩餘 ${remVal} 件）`;
+                    }
+
+                    summaryRows.push([
+                        "",
+                        comboName,
+                        cnt,
+                        idx === 0 ? catTotal : "",
+                        "",
+                        singleKey,
+                        singleDemandVal,
+                        stockVal,
+                        remVal,
+                        remarkStr
+                    ]);
+
+                    rowCounter++;
+                });
+            });
+
+            const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
+            XLSX.utils.book_append_sheet(wb, wsSummary, '贊助品項數量統計');
+
+            const optionSheetMap = {
+                '524菱格紋': '184260',
+                '528菱格紋': '186268',
+                '511輕量炒鍋': '186269',
+                '513輕量炒鍋': '186270',
+                '511+528雙鍋組': '186937'
+            };
+
+            Object.keys(optionSheetMap).forEach(sName => {
+                const optId = optionSheetMap[sName];
+                const filtered = ordersData.filter(o => o.optId === optId || o.overview.includes(sName.slice(0, 3)));
+                
+                const sheetRows = [
+                    ['訂單編號', '贊助選項總覽', '收件人', '連絡電話', '郵遞區號', '地址', '備註']
+                ];
+
+                filtered.forEach(o => {
+                    sheetRows.push([
+                        o.id,
+                        o.overview,
+                        o.recipient,
+                        o.phone,
+                        o.zipcode,
+                        o.address,
+                        o.remark
+                    ]);
+                });
+
+                const wsCategory = XLSX.utils.aoa_to_sheet(sheetRows);
+                XLSX.utils.book_append_sheet(wb, wsCategory, sName);
+            });
+
+            XLSX.writeFile(wb, '黑柳徹_訂單整理分類表_完整統計版.xlsx');
+            showToast('✅ 成功匯出 Master Excel 完整統計報表！');
+        }
+
+        function exportAllCombosBatch() {
+            if (!ordersData.length) {
+                showToast('⚠️ 請先匯入訂單資料');
+                return;
+            }
+
+            const comboCounts = {};
+            ordersData.forEach(o => {
+                const name = o.overview || '未指定讚助品項';
+                comboCounts[name] = (comboCounts[name] || 0) + 1;
+            });
+
+            const wb = XLSX.utils.book_new();
+
+            Object.keys(comboCounts).forEach((comboName, idx) => {
+                const filtered = ordersData.filter(o => o.overview === comboName);
+                const exportData = [
+                    [
+                        "序號(無用途)",
+                        "訂單號",
+                        "收件人姓名(必填)",
+                        "收件人地址(必填)",
+                        "收件人電話(必填)",
+                        "託運備註",
+                        "(商品別編號)",
+                        "商品數量(必填)",
+                        "才積/重量/總長",
+                        "代收貨款",
+                        "指定配送日期YYYYMMDD",
+                        "指定配送時間"
+                    ]
+                ];
+
+                filtered.forEach(o => {
+                    const fullAddr = [o.zipcode, o.address].filter(Boolean).join(' ').trim();
+                    const formattedPhone = formatPhoneNumber(o.phone);
+
+                    exportData.push([
+                        '',
+                        o.id || '',
+                        o.recipient || '',
+                        fullAddr || '',
+                        formattedPhone || '',
+                        o.remark || '',
+                        '',
+                        1,
+                        2,
+                        '',
+                        '',
+                        ''
+                    ]);
+                });
+
+                const sheetTitle = `組合${idx + 1}_${comboName.split('+')[0].trim().slice(0, 10)}`.replace(/[/\\?%*:|"<>]/g, '_');
+                const ws = XLSX.utils.aoa_to_sheet(exportData);
+                ws['!cols'] = [
+                    { wch: 14 }, { wch: 22 }, { wch: 18 }, { wch: 50 },
+                    { wch: 18 }, { wch: 30 }, { wch: 15 }, { wch: 16 },
+                    { wch: 18 }, { wch: 12 }, { wch: 22 }, { wch: 16 }
+                ];
+                XLSX.utils.book_append_sheet(wb, ws, sheetTitle.slice(0, 30));
+            });
+
+            XLSX.writeFile(wb, '黑柳徹_新竹物流託運單_細項組合總包.xlsx');
+            showToast('✅ 成功批次打包所有細項組合之新竹物流 Excel！');
+        }
+
+        function renderSidebar(dataToRender = getFilteredOrders()) {
+            const listEl = document.getElementById('orderList');
+            if (!dataToRender || dataToRender.length === 0) {
+                listEl.innerHTML = `
+                    <div id="emptyListState" class="p-8 text-center text-slate-400">
+                        <i class="fa-solid fa-folder-open text-3xl mb-3 text-slate-300"></i>
+                        <p class="text-xs font-medium text-slate-500">無符合的訂單資料</p>
+                    </div>`;
+                return;
+            }
+
+            listEl.innerHTML = dataToRender.map((order) => {
+                const originalIndex = ordersData.findIndex(o => o.id === order.id);
+                const isActive = originalIndex === activeOrderIndex && viewMode === 'single';
+                const displayName = enablePrivacyMask ? maskName(order.recipient) : order.recipient;
+                const displayPhone = enablePrivacyMask ? maskPhone(order.phone) : order.phone;
+                return `
+                    <div onclick="selectOrder(${originalIndex})" class="p-3 cursor-pointer hover:bg-slate-50 transition border-b border-slate-100 ${isActive ? 'bg-indigo-50/80 border-l-4 border-l-indigo-600' : ''}">
+                        <div class="flex justify-between items-start mb-1">
+                            <span class="font-mono text-xs font-bold text-slate-800">${escapeHtml(order.id)}</span>
+                            <span class="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-medium">${escapeHtml(displayName)}</span>
+                        </div>
+                        <p class="text-xs text-slate-500 truncate mb-1">${escapeHtml(order.overview || '無品項說明')}</p>
+                        <p class="text-[11px] text-slate-400 font-mono truncate">${escapeHtml(displayPhone)} · ${escapeHtml(enablePrivacyMask ? maskAddress(order.address) : order.address)}</p>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function selectOrder(index) {
+            activeOrderIndex = index;
+            renderSidebar();
+            renderPreview();
+        }
+
+        function setViewMode(mode) {
+            viewMode = mode;
+            const singleBtn = document.getElementById('viewSingleBtn');
+            const allBtn = document.getElementById('viewAllBtn');
+
+            if (mode === 'single') {
+                singleBtn.className = 'px-2.5 py-1 text-[11px] rounded font-medium bg-white shadow-sm text-slate-800';
+                allBtn.className = 'px-2.5 py-1 text-[11px] rounded font-medium text-slate-600 hover:text-slate-900';
+            } else {
+                allBtn.className = 'px-2.5 py-1 text-[11px] rounded font-medium bg-white shadow-sm text-slate-800';
+                singleBtn.className = 'px-2.5 py-1 text-[11px] rounded font-medium text-slate-600 hover:text-slate-900';
+            }
+            renderSidebar();
+            renderPreview();
+        }
+
+        function filterOrders() {
+            const filtered = getFilteredOrders();
+            const countEl = document.getElementById('orderCount');
+            if (countEl) countEl.innerText = filtered.length;
+
+            renderSidebar(filtered);
+            renderPreview();
+        }
+
+        function generateA4HTML(order, index) {
+            const itemsRows = (order.items || []).map((item, i) => `
+                <tr class="border-b border-slate-200">
+                    <td class="py-2 px-3 text-center font-mono text-slate-500 w-12 border-r border-slate-200">${i + 1}</td>
+                    <td class="py-2 px-3 font-bold text-slate-800 border-r border-slate-200">${escapeHtml(item.name || item.fullName)}</td>
+                    <td class="py-2 px-3 text-center font-mono font-bold text-slate-900 w-16 border-r border-slate-200">${item.quantity || 1}</td>
+                    <td class="py-2 px-2 text-center w-14"></td>
+                </tr>
+            `).join('');
+
+            const displayName = enablePrivacyMask ? maskName(order.recipient) : order.recipient;
+            const displayPhone = enablePrivacyMask ? maskPhone(order.phone) : order.phone;
+            const displayAddress = enablePrivacyMask ? maskAddress(order.address) : order.address;
+
+            return `
+                <div class="a4-page shadow-lg mb-8">
+                    <!-- Top Action Bar for Screen (no-print) -->
+                    <div class="no-print flex justify-between items-center mb-4 pb-2 border-b border-slate-200">
+                        <div class="flex items-center space-x-2">
+                            <span class="bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-0.5 rounded">訂單 #${index + 1}</span>
+                            <span class="text-xs font-mono text-slate-500">${escapeHtml(order.id)}</span>
+                            ${enablePrivacyMask ? '<span class="text-[10px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded border border-amber-200 flex items-center gap-0.5"><i class="fa-solid fa-lock text-[9px]"></i>個資已遮蔽</span>' : ''}
+                        </div>
+                        <button onclick="openEditItemModal(${index})" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded flex items-center space-x-1 shadow-sm transition">
+                            <i class="fa-solid fa-pen-to-square text-amber-400"></i>
+                            <span>編輯品項與備註</span>
+                        </button>
+                    </div>
+
+                    <!-- Header -->
+                    <div class="border-b-2 border-slate-900 pb-4 mb-4 flex justify-between items-end">
+                        <div>
+                            <h1 class="text-xl font-black text-slate-900 tracking-tight">${escapeHtml(senderConfig.brandName)}</h1>
+                            <p class="text-xs text-slate-500 font-mono mt-0.5">${escapeHtml(senderConfig.website)}</p>
+                        </div>
+                        <div class="text-right">
+                            <h2 class="text-lg font-bold text-slate-800">出貨明細單</h2>
+                            <p class="text-xs font-mono text-slate-600 mt-0.5">單號：<span class="font-bold text-slate-900">${escapeHtml(order.id)}</span></p>
+                        </div>
+                    </div>
+
+                    <!-- Recipient & Shipping Information -->
+                    <div class="grid grid-cols-2 gap-4 mb-5 bg-slate-50 p-4 rounded-lg border border-slate-200 text-xs">
+                        <div class="space-y-1.5">
+                            <div class="flex"><span class="text-slate-500 w-16 flex-shrink-0 font-medium">收件姓名：</span><span class="font-bold text-slate-900 text-sm">${escapeHtml(displayName)}</span></div>
+                            <div class="flex"><span class="text-slate-500 w-16 flex-shrink-0 font-medium">聯絡電話：</span><span class="font-mono font-bold text-slate-900">${escapeHtml(displayPhone)}</span></div>
+                        </div>
+                        <div class="space-y-1.5">
+                            <div class="flex"><span class="text-slate-500 w-16 flex-shrink-0 font-medium">郵遞區號：</span><span class="font-mono font-bold text-slate-900">${escapeHtml(order.zipcode)}</span></div>
+                            <div class="flex"><span class="text-slate-500 w-16 flex-shrink-0 font-medium">配送地址：</span><span class="font-medium text-slate-800 leading-relaxed">${escapeHtml(displayAddress)}</span></div>
+                        </div>
+                    </div>
+
+                    <!-- Order Remark Box (if present) -->
+                    ${order.remark ? `
+                    <div class="mb-4 bg-red-50 border-l-4 border-red-500 p-3 rounded-r text-xs">
+                        <span class="font-bold text-red-700 block mb-0.5">⚠️ 買家備註 (Remark)：</span>
+                        <p class="text-red-900 font-bold font-mono leading-relaxed">${escapeHtml(order.remark)}</p>
+                    </div>
+                    ` : ''}
+
+                    <!-- Product Items Table -->
+                    <div class="flex-1 mb-6">
+                        <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                            <i class="fa-solid fa-box-open text-slate-500"></i>
+                            <span>訂單包含品項內容</span>
+                        </h3>
+                        <table class="w-full text-left border-collapse text-xs border border-slate-200">
+                            <thead>
+                                <tr class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                                    <th class="py-2 px-3 text-center w-12 border-r border-slate-200">#</th>
+                                    <th class="py-2 px-3 border-r border-slate-200">品項名稱與規格描述</th>
+                                    <th class="py-2 px-3 text-center w-16 border-r border-slate-200">數量</th>
+                                    <th class="py-2 px-2 text-center w-14">退貨</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${itemsRows || '<tr><td colspan="4" class="p-4 text-center text-slate-400">無品項資料</td></tr>'}
+                            </tbody>
+                        </table>
+                        <p class="text-[11px] text-slate-500 font-medium mt-2 flex items-center gap-1">
+                            <i class="fa-solid fa-circle-info text-slate-400"></i>
+                            <span>如需辦理退貨，請勾選要退貨的品項</span>
+                        </p>
+                    </div>
+
+                    <!-- Footer Terms & QR Code -->
+                    <div class="pt-4 border-t border-slate-200 mt-auto grid grid-cols-12 gap-4 items-center text-[11px] text-slate-500">
+                        <div class="col-span-9 space-y-1">
+                            <p class="font-bold text-slate-700">【退換貨需知】</p>
+                            <p class="leading-relaxed text-slate-500">${escapeHtml(senderConfig.terms)}</p>
+                            <p class="font-semibold text-slate-700 mt-1">${escapeHtml(senderConfig.confirmation)}</p>
+                        </div>
+                        <div class="col-span-3 flex flex-col items-center justify-center text-center">
+                            <img src="${escapeHtml(senderConfig.qrCodeUrl)}" alt="QR Code" class="w-16 h-16 border border-slate-200 rounded p-0.5 bg-white mb-1">
+                            <span class="text-[10px] text-slate-400 font-medium">掃碼聯繫客服</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderPreview() {
+            const container = document.getElementById('printContainer');
+
+            if (!ordersData.length) {
+                container.innerHTML = `
+                    <div id="emptyPreviewState" class="no-print bg-white p-10 rounded-2xl shadow-sm text-center max-w-lg mt-12 border border-slate-200/80">
+                        <div class="w-16 h-16 bg-slate-100 text-slate-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <i class="fa-solid fa-file-circle-plus text-2xl"></i>
+                        </div>
+                        <h2 class="text-lg font-bold text-slate-800 mb-2">準備匯出極簡 A4 訂單</h2>
+                        <p class="text-xs text-slate-500 mb-6 leading-relaxed">請將 Excel 檔案拖曳至此處，或點擊右上角「上傳 Excel / CSV」。系統將自動整理品項、補齊電話零號並排版為標準 A4 格式。</p>
+                        <div class="flex justify-center space-x-3">
+                            <button onclick="loadDemoData()" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-medium transition shadow">
+                                載入示範資料測試
+                            </button>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+
+            const filtered = getFilteredOrders();
+
+            if (!filtered.length) {
+                container.innerHTML = `
+                    <div class="no-print bg-white p-10 rounded-2xl shadow-sm text-center max-w-lg mt-12 border border-slate-200/80">
+                        <div class="w-12 h-12 bg-slate-100 text-slate-500 rounded-full flex items-center justify-center mx-auto mb-3">
+                            <i class="fa-solid fa-filter text-xl"></i>
+                        </div>
+                        <h3 class="text-sm font-bold text-slate-800 mb-1">目前篩選條件無相符訂單</h3>
+                        <p class="text-xs text-slate-500">請嘗試切換讚助組合篩選器或清除搜尋關鍵字</p>
+                    </div>
+                `;
+                return;
+            }
+
+            if (viewMode === 'single') {
+                let currentOrder = ordersData[activeOrderIndex];
+                if (!filtered.some(o => o.id === currentOrder?.id)) {
+                    currentOrder = filtered[0];
+                    activeOrderIndex = ordersData.findIndex(o => o.id === currentOrder.id);
+                }
+                const origIdx = ordersData.findIndex(o => o.id === currentOrder.id);
+                container.innerHTML = generateA4HTML(currentOrder, origIdx);
+            } else {
+                container.innerHTML = filtered.map(order => {
+                    const origIdx = ordersData.findIndex(o => o.id === order.id);
+                    return generateA4HTML(order, origIdx);
+                }).join('');
+            }
+        }
+
+        function triggerPrint() {
+            const filtered = getFilteredOrders();
+            if (!filtered.length) return;
+
+            const container = document.getElementById('printContainer');
+            const previousMode = viewMode;
+
+            container.innerHTML = filtered.map(order => {
+                const origIdx = ordersData.findIndex(o => o.id === order.id);
+                return generateA4HTML(order, origIdx);
+            }).join('');
+
+            setTimeout(() => {
+                window.print();
+                setViewMode(previousMode);
+            }, 300);
+        }
+
+        function openSenderModal() {
+            document.getElementById('cfgBrandName').value = senderConfig.brandName;
+            document.getElementById('cfgWebsite').value = senderConfig.website;
+            document.getElementById('cfgTerms').value = senderConfig.terms;
+            document.getElementById('cfgConfirmation').value = senderConfig.confirmation;
+            document.getElementById('cfgQrPreview').src = senderConfig.qrCodeUrl;
+            document.getElementById('senderModal').classList.remove('hidden');
+        }
+
+        function closeSenderModal() {
+            document.getElementById('senderModal').classList.add('hidden');
+        }
+
+        function handleQrUpload(e) {
+            const file = e.target.files && e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                const dataUrl = evt.target.result;
+                document.getElementById('cfgQrPreview').src = dataUrl;
+                senderConfig.qrCodeUrl = dataUrl;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function saveSenderSettings() {
+            senderConfig.brandName = document.getElementById('cfgBrandName').value.trim() || '黑柳徹 × 嘖嘖';
+            senderConfig.website = document.getElementById('cfgWebsite').value.trim() || 'tetsu-kuroyanagi.com';
+            senderConfig.terms = document.getElementById('cfgTerms').value.trim();
+            senderConfig.confirmation = document.getElementById('cfgConfirmation').value.trim();
+
+            closeSenderModal();
+            renderPreview();
+            showToast('已更新頁尾設定');
+        }
+
+        function openEditItemModal(index = activeOrderIndex) {
+            if (index < 0 || index >= ordersData.length) return;
+            editingOrderIndex = index;
+            const order = ordersData[index];
+            
+            tempEditItems = order.items.map(item => ({ ...item }));
+            document.getElementById('editRemarkInput').value = order.remark || '';
+            
+            renderEditItemsList();
+            document.getElementById('itemEditModal').classList.remove('hidden');
+        }
+
+        function closeEditItemModal() {
+            document.getElementById('itemEditModal').classList.add('hidden');
+        }
+
+        function renderEditItemsList() {
+            const container = document.getElementById('editItemsRows');
+            if (!container) return;
+            
+            if (tempEditItems.length === 0) {
+                container.innerHTML = '<p class="text-xs text-slate-400 text-center py-4">無品項，請點擊右上方「新增品項」</p>';
+                return;
+            }
+
+            container.innerHTML = tempEditItems.map((item, idx) => {
+                const isPreset = presetProductOptions.includes(item.name);
+                return `
+                    <div class="flex items-center space-x-2 bg-slate-50 p-2 rounded-lg border border-slate-200">
+                        <span class="font-mono text-xs text-slate-400 font-bold w-5 text-center">${String(idx + 1).padStart(2, '0')}</span>
+                        <div class="flex-1 space-y-1">
+                            <select onchange="onPresetSelectChange(${idx}, this.value)" class="w-full text-xs border border-slate-300 rounded p-1.5 bg-white focus:ring-1 focus:ring-slate-800">
+                                ${presetProductOptions.map(opt => `<option value="${escapeHtml(opt)}" ${opt === item.name ? 'selected' : ''}>${escapeHtml(opt)}</option>`).join('')}
+                                <option value="CUSTOM" ${!isPreset ? 'selected' : ''}>10. 自訂品項</option>
+                            </select>
+                            <input type="text" id="customInput_${idx}" value="${escapeHtml(item.name)}" placeholder="請輸入自訂品項名稱" class="${!isPreset ? '' : 'hidden'} w-full text-xs border border-slate-300 rounded p-1.5 focus:ring-1 focus:ring-slate-800">
+                        </div>
+                        <input type="number" min="1" value="${item.quantity}" onchange="tempEditItems[${idx}].quantity = parseInt(this.value) || 1" class="w-14 text-xs border border-slate-300 rounded p-1.5 text-center font-mono font-bold">
+                        <button onclick="removeEditItemRow(${idx})" class="p-1.5 text-slate-400 hover:text-red-600 rounded transition">
+                            <i class="fa-solid fa-trash text-xs"></i>
+                        </button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function onPresetSelectChange(index, selectedValue) {
+            const customInput = document.getElementById(`customInput_${index}`);
+            if (selectedValue === 'CUSTOM') {
+                if (customInput) customInput.classList.remove('hidden');
+                tempEditItems[index].name = customInput ? customInput.value : '加購品項';
+            } else {
+                if (customInput) customInput.classList.add('hidden');
+                tempEditItems[index].name = selectedValue;
+            }
+        }
+
+        function addEditItemRow() {
+            tempEditItems.push({
+                fullName: presetProductOptions[0],
+                name: presetProductOptions[0],
+                quantity: 1
+            });
+            renderEditItemsList();
+        }
+
+        function removeEditItemRow(index) {
+            tempEditItems.splice(index, 1);
+            renderEditItemsList();
+        }
+
+        function saveItemEdits() {
+            if (editingOrderIndex < 0 || editingOrderIndex >= ordersData.length) return;
+
+            tempEditItems.forEach((item, idx) => {
+                const customInput = document.getElementById(`customInput_${idx}`);
+                if (customInput && !customInput.classList.contains('hidden')) {
+                    item.name = customInput.value.trim() || '自訂品項';
+                }
+                item.fullName = item.name;
+            });
+
+            const newRemark = document.getElementById('editRemarkInput').value.trim();
+            ordersData[editingOrderIndex].items = tempEditItems;
+            ordersData[editingOrderIndex].remark = newRemark;
+
+            closeEditItemModal();
+            renderSidebar();
+            renderPreview();
+            showToast('已更新訂單明細與備註');
+        }
+
+        // Initialize drag & drop on window load
+        window.addEventListener('DOMContentLoaded', () => {
+            initDragAndDrop();
+        });
+    </script>
+</body>
+</html>
