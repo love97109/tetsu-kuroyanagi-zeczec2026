@@ -234,6 +234,10 @@
             </div>
 
             <div class="flex flex-wrap items-center gap-2">
+                <button onclick="printSummaryReport()" class="px-3.5 py-2 text-xs font-bold bg-indigo-800 hover:bg-indigo-700 text-white rounded-lg transition flex items-center space-x-1.5 shadow">
+                    <i class="fa-solid fa-print"></i>
+                    <span>🖨️ 列印組合明細統計表</span>
+                </button>
                 <button onclick="exportHsinchuLogisticsExcel()" class="px-3.5 py-2 text-xs font-bold bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg transition flex items-center space-x-1.5 shadow">
                     <i class="fa-solid fa-file-excel"></i>
                     <span>🚚 匯出全部新竹物流託運單 Excel</span>
@@ -1137,6 +1141,124 @@
                 contentPrint.classList.remove('hidden');
                 contentDash.classList.add('hidden');
             }
+        }
+
+        /* ===== 🖨️ 單獨列印贊助組合明細與單品統計總表 ===== */
+        function printSummaryReport() {
+            if (!ordersData || ordersData.length === 0) {
+                showToast('⚠️ 請先匯入或載入訂單資料！');
+                return;
+            }
+
+            const printWin = window.open('', '_blank');
+            if (!printWin) {
+                showToast('⚠️ 請允許開啟彈窗以進行列印');
+                return;
+            }
+
+            const comboTableHtml = document.getElementById('tblComboBody').innerHTML;
+            const singleTableHtml = document.getElementById('tblSingleBody').innerHTML;
+            const now = new Date();
+            const timeStr = `${now.getFullYear()}/${now.getMonth() + 1}/${now.getDate()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+            // Remove operation action buttons from printed table
+            const cleanedComboHtml = comboTableHtml.replace(/<td class="py-2.5 px-3 text-center">[\s\S]*?<\/td>/g, '');
+
+            const printContent = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="UTF-8">
+                    <title>黑柳徹 × 嘖嘖 - 贊助品項組合與備貨統計表</title>
+                    <script src="https://cdn.tailwindcss.com"><\/script>
+                    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+                    <style>
+                        @media print {
+                            @page { size: A4 portrait; margin: 12mm; }
+                            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; background: white !important; }
+                        }
+                        body { font-family: 'Noto Sans TC', sans-serif; padding: 24px; color: #1e293b; }
+                        table { width: 100%; border-collapse: collapse; font-size: 11px; }
+                        th, td { border: 1px solid #cbd5e1; padding: 6px 8px; }
+                    </style>
+                </head>
+                <body onload="setTimeout(() => { window.print(); window.close(); }, 400);">
+                    <div class="max-w-4xl mx-auto space-y-6">
+                        <!-- Header -->
+                        <div class="flex justify-between items-end border-b-2 border-slate-900 pb-3">
+                            <div>
+                                <h1 class="text-xl font-black text-slate-900">${escapeHtml(senderConfig.brandName)}</h1>
+                                <p class="text-xs text-slate-500">贊助品項組合明細與單品備貨統計總表</p>
+                            </div>
+                            <div class="text-right text-xs text-slate-500">
+                                <p>列印時間：${timeStr}</p>
+                                <p>總訂單筆數：<strong class="text-slate-900 font-mono">${ordersData.length}</strong> 筆</p>
+                            </div>
+                        </div>
+
+                        <!-- KPI Summary Badges -->
+                        <div class="grid grid-cols-3 gap-4 text-xs font-bold">
+                            <div class="bg-slate-50 p-3 rounded border border-slate-200">
+                                <span class="text-slate-500 block text-[10px]">匯入總訂單數</span>
+                                <span class="text-lg font-mono text-indigo-700">${ordersData.length} 筆</span>
+                            </div>
+                            <div class="bg-slate-50 p-3 rounded border border-slate-200">
+                                <span class="text-slate-500 block text-[10px]">第一批總備貨數</span>
+                                <span class="text-lg font-mono text-amber-700">${document.getElementById('kpiTotalStock').innerText} 件</span>
+                            </div>
+                            <div class="bg-slate-50 p-3 rounded border border-slate-200">
+                                <span class="text-slate-500 block text-[10px]">鍋具需求總數</span>
+                                <span class="text-lg font-mono text-emerald-700">${document.getElementById('kpiTotalPansSold').innerText} 隻</span>
+                            </div>
+                        </div>
+
+                        <!-- Section 1: Combo Breakdown -->
+                        <div>
+                            <h2 class="text-sm font-bold text-slate-800 mb-2 flex items-center gap-1.5">
+                                <span class="w-2.5 h-2.5 bg-indigo-600 rounded-full inline-block"></span>
+                                <span>贊助品項組合明細統計表</span>
+                            </h2>
+                            <table>
+                                <thead class="bg-slate-100 text-slate-700 font-bold">
+                                    <tr>
+                                        <th>贊助品項 (贊助選項總覽)</th>
+                                        <th class="text-center w-16">數量</th>
+                                        <th class="text-center w-20">合計訂單</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${cleanedComboHtml}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Section 2: Single Item Breakdown -->
+                        <div class="pt-2">
+                            <h2 class="text-sm font-bold text-slate-800 mb-2 flex items-center gap-1.5">
+                                <span class="w-2.5 h-2.5 bg-emerald-600 rounded-full inline-block"></span>
+                                <span>品項統計 (單品拆解與備貨對比表)</span>
+                            </h2>
+                            <table>
+                                <thead class="bg-slate-100 text-slate-700 font-bold">
+                                    <tr>
+                                        <th>品項名稱</th>
+                                        <th class="text-center w-16">銷量</th>
+                                        <th class="text-center w-16">備貨</th>
+                                        <th class="text-center w-40">庫存說明</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${singleTableHtml}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </body>
+                </html>
+            `;
+
+            printWin.document.write(printContent);
+            printWin.document.close();
         }
 
         /* ===== 🚚 新竹物流標準 12 欄位匯出邏輯 (全部) ===== */
