@@ -257,7 +257,7 @@
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
             
             <!-- Left Column: Detailed Sponsorship Options Table (7 Cols) -->
-            <div class="lg:col-span-7 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+            <div class="lg:col-span-7 self-start bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                 <div class="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
                     <div class="flex items-center space-x-2">
                         <span class="w-2.5 h-2.5 bg-indigo-600 rounded-full"></span>
@@ -266,10 +266,11 @@
                     <span id="comboCountBadge" class="text-[11px] bg-slate-200 text-slate-700 font-semibold px-2 py-0.5 rounded-full">0 個組合</span>
                 </div>
 
-                <div class="overflow-x-auto flex-1 max-h-[600px] overflow-y-auto">
+                <div class="overflow-x-auto">
                     <table class="w-full text-left border-collapse text-xs">
                         <thead class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200 sticky top-0 z-10">
                             <tr>
+                                <th class="py-2.5 px-2 text-center border-r border-slate-200 w-11">序</th>
                                 <th class="py-2.5 px-3 border-r border-slate-200">贊助品項 (贊助選項總覽)</th>
                                 <th class="py-2.5 px-3 text-center border-r border-slate-200 w-16">數量</th>
                                 <th class="py-2.5 px-3 text-center border-r border-slate-200 w-20">合計訂單</th>
@@ -278,15 +279,16 @@
                         </thead>
                         <tbody id="tblComboBody" class="divide-y divide-slate-200">
                             <tr>
-                                <td colspan="4" class="p-8 text-center text-slate-400">尚未載入訂單資料</td>
+                                <td colspan="5" class="p-8 text-center text-slate-400">尚未載入訂單資料</td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
             </div>
 
-            <!-- Right Column: Single Item Breakdown & Stock Table (5 Cols) -->
-            <div class="lg:col-span-5 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+            <!-- Right Column: Single Item Breakdown, Stock & Carton Tables (5 Cols) -->
+            <div class="lg:col-span-5 space-y-6">
+            <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
                 <div class="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
                     <div class="flex items-center space-x-2">
                         <span class="w-2.5 h-2.5 bg-emerald-600 rounded-full"></span>
@@ -301,6 +303,7 @@
                     <table class="w-full text-left border-collapse text-xs">
                         <thead class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
                             <tr>
+                                <th class="py-2.5 px-2 text-center border-r border-slate-200 w-11">序</th>
                                 <th class="py-2.5 px-3 border-r border-slate-200">品項統計</th>
                                 <th class="py-2.5 px-3 text-center border-r border-slate-200 w-16">銷量</th>
                                 <th class="py-2.5 px-3 text-center border-r border-slate-200 w-16">備貨</th>
@@ -309,11 +312,40 @@
                         </thead>
                         <tbody id="tblSingleBody" class="divide-y divide-slate-200">
                             <tr>
-                                <td colspan="4" class="p-8 text-center text-slate-400">尚未載入訂單資料</td>
+                                <td colspan="5" class="p-8 text-center text-slate-400">尚未載入訂單資料</td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
+            </div>
+
+            <!-- External Carton Summary -->
+            <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <div class="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+                    <div class="flex items-center space-x-2">
+                        <span class="w-2.5 h-2.5 bg-amber-500 rounded-full"></span>
+                        <h3 class="text-sm font-bold text-slate-800">外箱統計</h3>
+                    </div>
+                    <span class="text-[11px] text-slate-500">依贊助品項組合自動加總</span>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse text-xs">
+                        <thead class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                            <tr>
+                                <th class="py-2.5 px-2 text-center border-r border-slate-200 w-11">序</th>
+                                <th class="py-2.5 px-3 border-r border-slate-200">外箱規格</th>
+                                <th class="py-2.5 px-3 text-center w-20">需求數量</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tblCartonBody" class="divide-y divide-slate-200">
+                            <tr>
+                                <td colspan="3" class="p-8 text-center text-slate-400">尚未載入訂單資料</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
             </div>
 
         </div>
@@ -589,6 +621,45 @@
             '金屬矽膠玻璃鍋蓋M號': '#E1F5FE',
             '金屬矽膠玻璃鍋蓋L號': '#EDEDED',
             '玉子燒煎盤木蓋組': '#FBE9E7'
+        };
+
+        // 外箱規格與贊助品項組合對照表（尺寸皆為外箱尺寸）
+        const cartonDefinitions = [
+            { id: '511-single', label: '511-單入（655×310×172mm）' },
+            { id: '511-double-ml', label: '511雙入＋M/L蓋（655×380×360mm）' },
+            { id: '511-single-s', label: '511單入＋S蓋（655×310×220mm）' },
+            { id: '511-double', label: '511雙入（655×310×305mm）' },
+            { id: '511-single-ml', label: '511單入＋M/L蓋（655×380×225mm）' },
+            { id: '513', label: '513（640×390×480mm）' },
+            { id: '513-1', label: '513-1（640×390×400mm）' },
+            { id: '513-single-ml', label: '513-單入＋M/L蓋（642×394×235mm）' },
+            { id: '513-single', label: '513-單入（642×348×182mm）' }
+        ];
+
+        const cartonRules = {
+            '24-grid': {
+                base: '511-single', S: '511-single-s', W: '511-double', M: '511-single-ml',
+                'S|W': '511-double-ml', 'S|L': '511-double-ml', 'M|W': '511-double-ml',
+                'S|M': '511-double-ml', 'S|M|L': '511-double-ml'
+            },
+            '28-grid': {
+                base: '511-single', M: '511-single-ml', W: '511-double', L: '511-single-ml',
+                'M|W': '511-double-ml', 'M|L': '511-double-ml', 'L|W': '511-double-ml',
+                S: '511-single-s', 'S|M|W': '513-1', 'M|L|W': '513'
+            },
+            '28-double-pan': {
+                base: '511-double', M: '511-double-ml', W: '513-1', L: '511-double-ml',
+                S: '511-double-ml', 'M|W': '513', 'M|L': '513-1', 'L|W': '511-double-ml',
+                'M|L|W': '513', 'S|M': '513-1', M2: '513-1', 'M2|W': '513-1'
+            },
+            '28-light': {
+                base: '511-single', M: '511-single-ml', W: '511-double', L: '511-single-ml',
+                S: '511-single-ml', 'L|W': '511-double-ml', 'M|W': '511-double-ml'
+            },
+            '33-light': {
+                base: '513-single', M: '513-single-ml', L: '513-single-ml', W: '511-double-ml',
+                'L|W': '511-double-ml', 'S|L': '511-double-ml'
+            }
         };
 
         // Sender Configuration State
@@ -927,10 +998,54 @@
             showToast(`已切換至「${comboName}」列印預覽`);
         }
 
+        function getCartonCategory(overview) {
+            if (overview.includes('24cm千格鍋組')) return '24-grid';
+            if (overview.includes('28cm千格鍋組')) return '28-grid';
+            if (overview.includes('28cm煎炒雙鍋組')) return '28-double-pan';
+            if (overview.includes('28cm輕量化炒鍋組')) return '28-light';
+            if (overview.includes('33cm輕量化炒鍋組')) return '33-light';
+            return '';
+        }
+
+        function getCartonAddonSignature(overview) {
+            const hasS = overview.includes('玻璃鍋蓋S號');
+            const hasM2 = /玻璃鍋蓋M號\s*(?:x|×)\s*2/i.test(overview);
+            const hasM = !hasM2 && overview.includes('玻璃鍋蓋M號');
+            const hasL = overview.includes('玻璃鍋蓋L號');
+            const hasWoodLid = overview.includes('木蓋');
+            return [hasS && 'S', hasM && 'M', hasM2 && 'M2', hasL && 'L', hasWoodLid && 'W'].filter(Boolean).join('|') || 'base';
+        }
+
+        function getCartonIdForOverview(overview) {
+            const category = getCartonCategory(overview || '');
+            if (!category) return '';
+            return cartonRules[category]?.[getCartonAddonSignature(overview)] || '';
+        }
+
+        function renderCartonStatistics() {
+            const body = document.getElementById('tblCartonBody');
+            if (!body) return;
+
+            const cartonDemand = Object.fromEntries(cartonDefinitions.map(carton => [carton.id, 0]));
+            ordersData.forEach(order => {
+                const cartonId = getCartonIdForOverview(order.overview || '');
+                if (cartonId) cartonDemand[cartonId]++;
+            });
+
+            body.innerHTML = cartonDefinitions.map((carton, index) => `
+                <tr class="hover:bg-amber-50/50">
+                    <td class="py-2.5 px-2 text-center font-mono text-slate-500 border-r border-slate-200">${index + 1}</td>
+                    <td class="py-2.5 px-3 font-medium text-slate-800 border-r border-slate-200">${escapeHtml(carton.label)}</td>
+                    <td class="py-2.5 px-3 text-center font-mono font-extrabold text-slate-900">${cartonDemand[carton.id].toLocaleString()}</td>
+                </tr>
+            `).join('');
+        }
+
         function renderDashboard() {
             if (!ordersData.length) {
-                document.getElementById('tblComboBody').innerHTML = '<tr><td colspan="4" class="p-8 text-center text-slate-400">尚未載入訂單資料</td></tr>';
-                document.getElementById('tblSingleBody').innerHTML = '<tr><td colspan="4" class="p-8 text-center text-slate-400">尚未載入訂單資料</td></tr>';
+                document.getElementById('tblComboBody').innerHTML = '<tr><td colspan="5" class="p-8 text-center text-slate-400">尚未載入訂單資料</td></tr>';
+                document.getElementById('tblSingleBody').innerHTML = '<tr><td colspan="5" class="p-8 text-center text-slate-400">尚未載入訂單資料</td></tr>';
+                document.getElementById('tblCartonBody').innerHTML = '<tr><td colspan="3" class="p-8 text-center text-slate-400">尚未載入訂單資料</td></tr>';
                 return;
             }
 
@@ -963,6 +1078,7 @@
                         const bgStyle = `background-color: ${group.color};`;
 
                         comboHtml += `<tr class="hover:opacity-90 border-b border-slate-200/80" style="${bgStyle}">`;
+                        comboHtml += `<td class="py-2.5 px-2 text-center font-mono text-slate-500 border-r border-slate-200/80">${idx + 1}</td>`;
                         comboHtml += `<td class="py-2.5 px-3 font-medium text-slate-800 border-r border-slate-200/80">${escapeHtml(comboName)}</td>`;
                         comboHtml += `<td class="py-2.5 px-3 text-center font-bold text-slate-900 border-r border-slate-200/80">${count}</td>`;
                         
@@ -987,7 +1103,7 @@
                 }
             });
 
-            document.getElementById('tblComboBody').innerHTML = comboHtml || '<tr><td colspan="4" class="p-6 text-center text-slate-400">無相符資料</td></tr>';
+            document.getElementById('tblComboBody').innerHTML = comboHtml || '<tr><td colspan="5" class="p-6 text-center text-slate-400">無相符資料</td></tr>';
             document.getElementById('comboCountBadge').innerText = `${Object.keys(comboCounts).length} 個組合`;
 
             // 2. Single item demand calculation
@@ -1024,7 +1140,7 @@
             let singleHtml = '';
             let oversoldAlertCount = 0;
 
-            Object.keys(singleDemand).forEach(itemName => {
+            Object.keys(singleDemand).forEach((itemName, index) => {
                 const demand = singleDemand[itemName];
                 const stock = stockConfig[itemName] || 0;
                 const rem = stock - demand;
@@ -1047,6 +1163,7 @@
                 }
 
                 singleHtml += `<tr style="background-color: ${bgColor};" class="border-b border-slate-200/80">`;
+                singleHtml += `<td class="py-2.5 px-2 text-center font-mono text-slate-500 border-r border-slate-200/80">${index + 1}</td>`;
                 singleHtml += `<td class="py-2.5 px-3 font-medium text-slate-800 border-r border-slate-200/80">${escapeHtml(itemName)}</td>`;
                 singleHtml += `<td class="py-2.5 px-3 text-center font-bold text-slate-900 border-r border-slate-200/80">${demand}</td>`;
                 singleHtml += `<td class="py-2.5 px-3 text-center font-bold text-slate-900 border-r border-slate-200/80">${stock}</td>`;
@@ -1055,6 +1172,7 @@
             });
 
             document.getElementById('tblSingleBody').innerHTML = singleHtml;
+            renderCartonStatistics();
 
             // Update KPI cards
             document.getElementById('kpiTotalOrders').innerText = ordersData.length.toLocaleString();
@@ -1158,6 +1276,7 @@
 
             const comboTableHtml = document.getElementById('tblComboBody').innerHTML;
             const singleTableHtml = document.getElementById('tblSingleBody').innerHTML;
+            const cartonTableHtml = document.getElementById('tblCartonBody').innerHTML;
             const now = new Date();
             const timeStr = `${now.getFullYear()}/${now.getMonth() + 1}/${now.getDate()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
@@ -1221,6 +1340,7 @@
                             <table>
                                 <thead class="bg-slate-100 text-slate-700 font-bold">
                                     <tr>
+                                        <th class="text-center w-10">序</th>
                                         <th>贊助品項 (贊助選項總覽)</th>
                                         <th class="text-center w-16">數量</th>
                                         <th class="text-center w-20">合計訂單</th>
@@ -1241,6 +1361,7 @@
                             <table>
                                 <thead class="bg-slate-100 text-slate-700 font-bold">
                                     <tr>
+                                        <th class="text-center w-10">序</th>
                                         <th>品項名稱</th>
                                         <th class="text-center w-16">銷量</th>
                                         <th class="text-center w-16">備貨</th>
@@ -1249,6 +1370,26 @@
                                 </thead>
                                 <tbody>
                                     ${singleTableHtml}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Section 3: External Carton Summary -->
+                        <div class="pt-2">
+                            <h2 class="text-sm font-bold text-slate-800 mb-2 flex items-center gap-1.5">
+                                <span class="w-2.5 h-2.5 bg-amber-500 rounded-full inline-block"></span>
+                                <span>外箱統計</span>
+                            </h2>
+                            <table>
+                                <thead class="bg-slate-100 text-slate-700 font-bold">
+                                    <tr>
+                                        <th class="text-center w-10">序</th>
+                                        <th>外箱規格</th>
+                                        <th class="text-center w-20">需求數量</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${cartonTableHtml}
                                 </tbody>
                             </table>
                         </div>
@@ -1957,6 +2098,7 @@
             ordersData[editingOrderIndex].remark = newRemark;
 
             closeEditItemModal();
+            renderDashboard();
             renderSidebar();
             renderPreview();
             showToast('已更新訂單明細與備註');
