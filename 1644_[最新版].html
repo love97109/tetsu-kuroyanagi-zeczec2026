@@ -610,6 +610,13 @@
             '玉子燒煎盤木蓋組': 500
         };
 
+        // 每隻主要鍋具附一套配件；雙鍋組拆入兩款鍋具，各計一套。
+        const accessoryStock = { '鍋具刷': 610, '櫸木鏟': 2500 };
+        const accessoryPanNames = [
+            '超早鳥｜24cm千格鍋組', '超早鳥｜28cm千格鍋組',
+            '超早鳥｜28cm輕量化炒鍋組', '超早鳥｜33cm輕量化炒鍋組'
+        ];
+
         // Color Mapping Palette (Morandi theme)
         const morandiColors = {
             '超早鳥｜24cm千格鍋組': '#E6F0FA',
@@ -1169,6 +1176,31 @@
                 singleHtml += `<td class="py-2.5 px-3 text-center font-bold text-slate-900 border-r border-slate-200/80">${stock}</td>`;
                 singleHtml += `<td class="py-2.5 px-3 text-center text-xs"><span class="px-2 py-1 rounded inline-block" style="${statusBadgeStyle}">${statusText}</span></td>`;
                 singleHtml += `</tr>`;
+                if (accessoryPanNames.includes(itemName)) {
+                    Object.keys(accessoryStock).forEach(accessory => {
+                        singleHtml += `<tr class="bg-slate-50 text-xs border-b border-slate-200/80">
+                            <td class="py-2 px-2 border-r border-slate-200/80"></td>
+                            <td class="py-2 px-3 pl-6 text-slate-600 border-r border-slate-200/80">↳ ${accessory}</td>
+                            <td class="py-2 px-3 text-center font-bold border-r border-slate-200/80">${demand}</td>
+                            <td class="py-2 px-3 text-center text-slate-400 border-r border-slate-200/80">—</td>
+                            <td class="py-2 px-3 text-center text-slate-500">每隻鍋具附 1 隻；共用庫存見下方</td>
+                        </tr>`;
+                    });
+                }
+            });
+
+            singleHtml += '<tr class="bg-indigo-50"><td colspan="5" class="py-2 px-3 font-bold text-indigo-800">配件共用庫存統計（四款鍋具合計，雙鍋組計兩套）</td></tr>';
+            Object.entries(accessoryStock).forEach(([name, stock]) => {
+                const remaining = stock - totalPansCount;
+                if (remaining < 0) oversoldAlertCount++;
+                const status = remaining < 0 ? `短缺 ${Math.abs(remaining)} 隻` : `剩餘 ${remaining} 隻`;
+                singleHtml += `<tr class="border-b border-slate-200/80" style="background-color: ${remaining < 0 ? '#fef2f2' : '#f0fdf4'}">
+                    <td class="py-2.5 px-2 text-center border-r border-slate-200/80">—</td>
+                    <td class="py-2.5 px-3 font-bold border-r border-slate-200/80">${name}（合計）</td>
+                    <td class="py-2.5 px-3 text-center font-bold border-r border-slate-200/80">${totalPansCount}</td>
+                    <td class="py-2.5 px-3 text-center font-bold border-r border-slate-200/80">${stock}</td>
+                    <td class="py-2.5 px-3 text-center font-bold" style="color: ${remaining < 0 ? '#dc2626' : '#047857'}">${status}</td>
+                </tr>`;
             });
 
             document.getElementById('tblSingleBody').innerHTML = singleHtml;
@@ -1178,7 +1210,7 @@
             document.getElementById('kpiTotalOrders').innerText = ordersData.length.toLocaleString();
             document.getElementById('kpiTotalPansSold').innerText = totalPansCount.toLocaleString();
 
-            const sumStock = Object.values(stockConfig).reduce((a, b) => a + b, 0);
+            const sumStock = [...Object.values(stockConfig), ...Object.values(accessoryStock)].reduce((a, b) => a + b, 0);
             document.getElementById('kpiTotalStock').innerText = sumStock.toLocaleString();
 
             const alertEl = document.getElementById('kpiOversoldAlert');
@@ -1637,8 +1669,34 @@
                 });
             });
 
+            // 補齊未與組合列對齊的單品統計，避免配件需求的來源資料遺漏。
+            while (rowCounter < singleKeys.length) {
+                const name = singleKeys[rowCounter++];
+                const stock = stockConfig[name] || 0;
+                const remaining = stock - singleDemand[name];
+                summaryRows.push(['', '', '', '', '', name, singleDemand[name], stock, remaining,
+                    remaining < 0 ? `超賣 ${Math.abs(remaining)} 件（透支庫存）` : `剩餘 ${remaining} 件`]);
+            }
+
             const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
             XLSX.utils.book_append_sheet(wb, wsSummary, '贊助品項數量統計');
+
+            const accessoryRows = [['鍋組／配件', '需求數量', '共用備貨總數', '剩餘／短缺', '說明']];
+            const totalAccessoryDemand = accessoryPanNames.reduce((sum, name) => sum + singleDemand[name], 0);
+            accessoryPanNames.forEach(name => {
+                accessoryRows.push([name, singleDemand[name], '', '', '每隻鍋具附一套配件']);
+                Object.keys(accessoryStock).forEach(accessory => {
+                    accessoryRows.push([`↳ ${accessory}`, singleDemand[name], '', '', '共用庫存見下方合計']);
+                });
+            });
+            Object.entries(accessoryStock).forEach(([name, stock]) => {
+                const remaining = stock - totalAccessoryDemand;
+                accessoryRows.push([`${name}（合計）`, totalAccessoryDemand, stock, remaining,
+                    remaining < 0 ? `短缺 ${Math.abs(remaining)} 隻` : `剩餘 ${remaining} 隻`]);
+            });
+            const wsAccessories = XLSX.utils.aoa_to_sheet(accessoryRows);
+            wsAccessories['!cols'] = [{ wch: 36 }, { wch: 14 }, { wch: 18 }, { wch: 18 }, { wch: 32 }];
+            XLSX.utils.book_append_sheet(wb, wsAccessories, '鍋組配件需求與庫存');
 
             const optionSheetMap = {
                 '524菱格紋': '184260',
